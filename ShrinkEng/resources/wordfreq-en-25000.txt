@@ -5769,6 +5769,8 @@ declined
 declines
 declining
 deco
+decode
+decoded
 decomposition
 decor
 decorate
@@ -6682,6 +6684,7 @@ doe
 does
 doesn't
 doesnt
+doesn’t
 dog
 dog's
 dogg
@@ -7816,6 +7819,7 @@ everybody's
 everyday
 everyone
 everyone's
+everyone’s
 everything
 everything's
 everytime
@@ -11848,6 +11852,7 @@ its
 itself
 itunes
 itv
+it’s
 iu
 iucn
 iv
@@ -19963,6 +19968,7 @@ sherman
 sherry
 sherwood
 shes
+she’s
 shhh
 shi
 shia
@@ -22213,6 +22219,7 @@ that'll
 that's
 thatcher
 thats
+that’s
 thaw
 thc
 the
@@ -22263,6 +22270,7 @@ therein
 thereof
 theres
 theresa
+there’s
 thermal
 thermals
 thermometer
@@ -22276,6 +22284,7 @@ they'll
 they're
 they've
 theyre
+they’re
 thi
 thick
 thicker
@@ -24213,6 +24222,7 @@ whatever
 whats
 whatsapp
 whatsoever
+what’s
 wheat
 wheel
 wheelchair
