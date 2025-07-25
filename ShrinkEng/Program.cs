@@ -49,8 +49,18 @@ byte[] Compress(string s)
             if (utfWord.Length == 0) // if the length is 0, it must be a space, since we split by space
             {
                 utfBlock = false; // reset the UTF block
-                compressed.Add(1);
-                compressed.Add((byte)' ');
+                // see just how many spaces we have without modifying i
+                uint j = 1;
+                while (i + j < words.Length && words[i + j].Length == 0)
+                {
+                    j++;
+                }
+                compressed.AddRange(Encode7BitVarUInt(j)); ;
+                while (j > 0)
+                {
+                    compressed.Add((byte) ' ');
+                    j--;
+                }
                 continue;
             }
             // Write utf bytes of this unknown word to the compressed array
