@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Numerics;
+using System.Reflection;
 using System.Text;
 
 // Initialization of words list
@@ -12,7 +13,7 @@ using (var stream = assembly.GetManifestResourceStream(resourceName))
         Console.WriteLine("Resource not found.");
         return;
     }
-
+    
     using (var reader = new StreamReader(stream))
     {
         string wordList = reader.ReadToEnd();
@@ -33,43 +34,114 @@ for (ushort i = 0; i < wordsArr.Length; i++)
     }
 }
 
-ushort[] Compress(string s)
+byte[] Compress(string s)
 {
     string[] words = s.Split(' ');
-    ushort[] compressed = new ushort[words.Length];
+    //resize vector
+    var compressed = new List<byte>(words.Length * sizeof(ushort));
+    bool utfBlock = false;
     for (int i = 0; i < words.Length; i++)
     {
-        string lower = wordsArr[i].ToLower(); // TODO handle uppercase, somehow?
-        if (wordMap.TryGetValue(words[i], out ushort index))
+        string lower = words[i].ToLower(); // TODO handle uppercase, somehow?
+        if (utfBlock)
         {
-            compressed[i] = index;
+            string utfWord = words[i];
+            if (utfWord.Length == 0) // if the length is 0, it must be a space, since we split by space
+            {
+                utfBlock = false; // reset the UTF block
+                compressed.Add(1);
+                compressed.Add((byte)' ');
+                continue;
+            }
+            // Write utf bytes of this unknown word to the compressed array
+            byte[] utfBytes = Encoding.UTF8.GetBytes(utfWord);
+            // First, signal the length of the UTF block to the decompressor with a variable length 7 bit integer
+            compressed.AddRange(Encode7BitVarUInt((uint) utfBytes.Length)); // Long length is probably not necessary lol. Just in case...
+            compressed.AddRange(utfBytes);
+            utfBlock = false;
+        }else if (wordMap.TryGetValue(lower, out var index))
+        {
+            if (i + 1 < words.Length && !wordMap.ContainsKey(words[i+1].ToLower()))
+            {
+                utfBlock = true;
+                // set first bit of index to 1 to indicate UTF block on next word to the decompressor
+                index = (ushort)(index | 0x8000);
+                byte[] bytes = BitConverter.GetBytes(index);
+                compressed.Add(bytes[0]);
+                compressed.Add(bytes[1]);
+            }
+            else
+            {
+                // Write the short to the current index of the byte array + update index (can't simply set the short since it's a byte array)
+                byte[] bytes = BitConverter.GetBytes(index);
+                compressed.Add(bytes[0]);
+                compressed.Add(bytes[1]);
+            }
         }else
         {
-            compressed[i] = 65535;
+            throw new Exception("Word not found in dictionary: " + lower + ", but UTF block was not enabled. \n" +
+                                "This should not happen, please report this bug to the developer.");
         }
     }
 
-    return compressed;
+    return compressed.ToArray();
 }
 
-string Decompress(ushort[] compressed)
+string Decompress(byte[] compressed)
 {
     StringBuilder sb = new StringBuilder();
-    foreach (ushort index in compressed)
+    int i = 0;
+    bool utfBlock = false;
+    
+    while (i < compressed.Length)
     {
-        if (index == 65535)
+        if (utfBlock)
         {
-            sb.Append("UNKNOWN ");
-        }
-        else if (index < wordsArr.Length)
-        {
-            sb.Append(wordsArr[index] + " ");
+            // Read the length of the UTF block using variable-length encoding
+            uint utfLength = Decode7BitVarUInt(compressed, ref i);
+            if (i + utfLength <= compressed.Length)
+            {
+                byte[] utfBytes = new byte[utfLength];
+                Array.Copy(compressed, i, utfBytes, 0, (int)utfLength);
+                i += (int)utfLength;
+                
+                string utfWord = Encoding.UTF8.GetString(utfBytes);
+                sb.Append(utfWord + " ");
+            }
+            utfBlock = false;
         }
         else
         {
-            sb.Append("OUT_OF_BOUNDS ");
+            if (i + 1 < compressed.Length)
+            {
+                ushort index = BitConverter.ToUInt16(compressed, i);
+                i += 2;
+                // check if the high bit is set (UTF block flag)
+                if ((index & 0x8000) != 0)
+                {
+                    utfBlock = true;
+                    index = (ushort)(index & 0x7FFF); // Clear the UTF block flag
+                }
+                // add word from dictionary
+                if (index < wordsArr.Length)
+                {
+                    sb.Append(wordsArr[index] + " ");
+                }
+                else
+                {
+                    sb.Append("OUT_OF_BOUNDS ");
+                }
+            }
+            else
+            {
+                // we're done! unfortunately we don't have a full short for this word and the UTF block wasn't enabled.
+                Console.WriteLine("Warning: Incomplete data at the end of the compressed file. "
+                                + "This may indicate a corrupted file or an error in compression.");
+                
+            }
         }
     }
+    
     return sb.ToString().TrimEnd();
 }
 
@@ -107,12 +179,12 @@ if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
 // read the file
 string text = File.ReadAllText(filePath);
 // compress the text
-ushort[] compressed = Compress(text);
+byte[] compressed = Compress(text);
 // write the compressed data to a file
 string compressedFilePath = Path.ChangeExtension(filePath, ".eng");
-File.WriteAllBytes(compressedFilePath, compressed.SelectMany(BitConverter.GetBytes).ToArray());
+File.WriteAllBytes(compressedFilePath, compressed);
 // inform the user
-Console.WriteLine($"Compressed {new FileInfo(filePath).Length} bytes to {compressed.Length * sizeof(ushort)} bytes.");
+Console.WriteLine($"Compressed {new FileInfo(filePath).Length} bytes to {compressed.Length} bytes.");
 Console.WriteLine($"Compressed file saved to: {compressedFilePath}");
 goto compressordecompress;
 
@@ -124,19 +196,8 @@ if (string.IsNullOrEmpty(decompressFilePath) || !File.Exists(decompressFilePath)
     Console.WriteLine("Invalid file path.");
     goto decompress;
 }
-// read the compressed data
-ushort[] compressedData;
-using (var fs = new FileStream(decompressFilePath, FileMode.Open, FileAccess.Read))
-{
-    int length = (int)fs.Length / sizeof(ushort);
-    compressedData = new ushort[length];
-    byte[] buffer = new byte[sizeof(ushort)];
-    for (int i = 0; i < length; i++)
-    {
-        fs.ReadExactly(buffer, 0, sizeof(ushort));
-        compressedData[i] = BitConverter.ToUInt16(buffer, 0);
-    }
-}
+// read the compressed data as bytes
+byte[] compressedData = File.ReadAllBytes(decompressFilePath);
 
 // decompress the data
 string decompressedText = Decompress(compressedData);
@@ -144,7 +205,7 @@ string decompressedText = Decompress(compressedData);
 string decompressedFilePath = FileNameNoOverwrite(Path.ChangeExtension(decompressFilePath, ".txt"));
 File.WriteAllText(decompressedFilePath, decompressedText);
 // inform the user
-Console.WriteLine($"Decompressed {compressedData.Length * sizeof(ushort)} bytes to {new FileInfo(decompressedFilePath).Length} bytes ({decompressedText.Length} characters).");
+Console.WriteLine($"Decompressed {compressedData.Length} bytes to {new FileInfo(decompressedFilePath).Length} bytes ({decompressedText.Length} characters).");
 Console.WriteLine($"File path: {decompressedFilePath}");
 goto compressordecompress;
 
@@ -173,6 +234,41 @@ string ProcessFilepathInput(string? inp)
         string subPath = inp[1..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         inp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), subPath);
     }
-    
     return Path.GetFullPath(inp);
+}
+
+// Encodes a ulong as a 7-bit variable length unsigned int.
+// Each byte: bits 0-6 are data, bit 7 is continuation (1 if more bytes follow, 0 if last byte).
+byte[] Encode7BitVarUInt(uint value)
+{
+    var bytes = new List<byte>();
+    do
+    {
+        byte b = (byte)(value & 0x7F);
+        value >>= 7;
+        if (value != 0)
+        {
+            b |= 0x80; // Set continuation bit
+        }
+        bytes.Add(b);
+    } while (value != 0);
+    return bytes.ToArray();
+}
+
+// Warning: also advances the index
+uint Decode7BitVarUInt(byte[] bytes, ref int index)
+{
+    uint value = 0;
+    int shift = 0;
+    while (index < bytes.Length)
+    {
+        byte b = bytes[index++];
+        value |= (uint)(b & 0x7F) << shift;
+        if ((b & 0x80) == 0) // If the continuation bit is not set, we're done
+        {
+            break;
+        }
+        shift += 7;
+    }
+    return value;
 }
