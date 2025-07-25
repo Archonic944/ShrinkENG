@@ -38,9 +38,16 @@ byte[] Compress(string s)
 {
     string[] words = s.Split(' ');
     //resize vector
-    var compressed = new List<byte>(words.Length * sizeof(ushort));
-    bool utfBlock = false;
-    for (int i = 0; i < words.Length; i++)
+    var compressed = new List<byte>(words.Length * sizeof(ushort) + 8);
+    // first, write the "info byte"
+    // currently only the first bit is used to indicate whether the file starts with a UTF block or not
+    // the rest of the bits are reserved for future use
+    bool utfBlock = !wordMap.ContainsKey(words[0].ToLower()); // TODO again, handle uppercase!
+    if (utfBlock) 
+    {
+        compressed.Add(1);
+    }else compressed.Add(0);
+    for (uint i = 0; i < words.Length; i++)
     {
         string lower = words[i].ToLower(); // TODO handle uppercase, somehow?
         if (utfBlock)
@@ -53,11 +60,14 @@ byte[] Compress(string s)
                 uint j = 1;
                 while (i + j < words.Length && words[i + j].Length == 0)
                 {
+                    Console.WriteLine("Found " + j + " spaces in a row.");
                     j++;
                 }
-                compressed.AddRange(Encode7BitVarUInt(j)); ;
+                compressed.AddRange(Encode7BitVarUInt(j - 1));
+                i += --j; // make hay while the sun shines (before we reset j, I mean)
                 while (j > 0)
                 {
+                    Console.WriteLine("Adding space to compressed array.");
                     compressed.Add((byte) ' ');
                     j--;
                 }
@@ -101,8 +111,9 @@ string Decompress(byte[] compressed)
 {
     StringBuilder sb = new StringBuilder();
     int i = 0;
-    bool utfBlock = false;
-    
+    // Read info byte
+    byte info = compressed[i++];
+    bool utfBlock = info == 1;
     while (i < compressed.Length)
     {
         if (utfBlock)
@@ -114,7 +125,6 @@ string Decompress(byte[] compressed)
                 byte[] utfBytes = new byte[utfLength];
                 Array.Copy(compressed, i, utfBytes, 0, (int)utfLength);
                 i += (int)utfLength;
-                
                 string utfWord = Encoding.UTF8.GetString(utfBytes);
                 sb.Append(utfWord + " ");
             }
