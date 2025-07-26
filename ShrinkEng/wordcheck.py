@@ -1,4 +1,4 @@
-# Get user input, split by word, check if each word is in the dictionary (/Users/gabriel/RiderProjects/ShrinkEng/ShrinkEng/resources/english_25k.txt) and if any isn't add that word on a new line in the dictionary
+# Get user input, split by word, check if each word is in the dictionary and if any isn't add that word on a new line in the dictionary
 
 import os
 def load_dictionary(file_path):
