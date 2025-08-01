@@ -1,6 +1,4 @@
-﻿//TODO: not much! just some extra spaces littered around the decompressed file for some reason.
-//also, it's adding random quotes... see beemovie_fuller line 1067 
-using System.Numerics;
+﻿using System.Numerics;
 using System.Reflection;
 using System.Text;
 using ShrinkEng;
