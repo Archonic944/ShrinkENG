@@ -37,222 +37,176 @@ for (ushort i = 0; i < wordsArr.Length; i++)
 
 byte[] Compress(string s)
 {
-    string[] words = s.Split(' ');
-    //resize vector
-    var compressed = new List<byte>(words.Length * sizeof(ushort) + 8);
-    // first, write the "info byte"
-    // currently only the first bit is used to indicate whether the file starts with a UTF block or not
-    // the rest of the bits are reserved for future use
-    List<Operator> ops = Operator.MinApplicableOps(words[0], wordMap);
-    compressed.Add(ops.Count != 0 ? (byte)1 : (byte)0);
-    var utfBlock = false;
-    for (uint i = 0; i < words.Length; i++)
+    if (string.IsNullOrEmpty(s))
     {
-        string word = words[i];
-        byte[] data = [];
-        if (ops.Count > 0)
+        return [];
+    }
+
+    string[] words = s.Split(' ');
+    var compressed = new List<byte>(words.Length * sizeof(ushort) + 8);
+
+    // Determine initial ops
+    var ops = Operator.MinApplicableOps(words[0], wordMap);
+    bool startsWithOps = ops.Count > 0;
+    // Write info byte: bit0 indicates initial operator data follows
+    compressed.Add(startsWithOps ? (byte)1 : (byte)0);
+    if (startsWithOps)
+    {
+        WriteOpsData(compressed, ops);
+    }
+
+    for (int i = 0; i < words.Length; i++)
+    {
+        bool hasOps = ops.Count > 0;
+        bool inUtf = hasOps && ops[0] == Operator.FlagUTFBlock;
+        byte[] payload;
+
+        if (inUtf)
         {
-            if (ops[0] == Operator.FlagUTFBlock)
+            // UTF block: write payload length and bytes
+            payload = Encoding.UTF8.GetBytes(words[i]);
+            compressed.AddRange(Encode7BitVarUInt((uint)payload.Length));
+            compressed.AddRange(payload);
+        }
+        else if(hasOps)
+        {
+            // Clean and lookup
+            string cleaned = words[i];
+            foreach (var op in ops)
             {
-                utfBlock = true;
-                string utfWord = words[i];
-                if (utfWord.Length == 0) // if the length is 0, it must be a space, since we split by space
-                {
-                    // see just how many spaces we have without modifying i
-                    uint j = 1;
-                    while (i + j < words.Length && words[i + j].Length == 0)
-                    {
-                        Console.WriteLine("Found " + j + " spaces in a row.");
-                        j++;
-                    }
-                    WriteOpsData(compressed, ops);
-                    compressed.AddRange(Encode7BitVarUInt(j-1));
-                    i += --j; // make hay while the sun shines (before we reset j, I mean)
-                    var spaces = "";
-                    while (j > 0)
-                    {
-                        Console.WriteLine("Adding space to compressed array.");
-                        spaces += ' ';
-                        j--;
-                    }
-
-                    data = Encoding.UTF8.GetBytes(spaces);
-                }
-
-                // Write utf bytes of this unknown word to the compressed array
-                byte[] utfBytes = Encoding.UTF8.GetBytes(utfWord);
-                WriteOpsData(compressed, ops);
-                compressed.AddRange(Encode7BitVarUInt((uint)utfBytes.Length));
-                data = utfBytes;
+                cleaned = op.Clean(cleaned);
             }
-            else
+            if (!wordMap.TryGetValue(cleaned, out ushort idx))
             {
-                var cleaned = words[i];
-                ops.ForEach(op => cleaned = op.Clean(cleaned));
-                if(wordMap.TryGetValue(cleaned, out var value))
+                throw new Exception($"Word not found in dictionary: '{words[i]}' cleaned to '{cleaned}'");
+            }
+            payload = BitConverter.GetBytes(idx);
+            //compressed.AddRange(payload);
+        }
+        else
+        {
+            if(!wordMap.TryGetValue(words[i], out var idx))
+            {
+                throw new Exception($"Word not found in dictionary: '{words[i]}'");
+            }
+            payload = BitConverter.GetBytes(idx);
+        }
+
+        // Prepare ops for next word
+        List<Operator> nextOps = new List<Operator>();
+        if (i + 1 < words.Length)
+        {
+            nextOps = Operator.MinApplicableOps(words[i + 1], wordMap);
+            if (nextOps.Count > 0)
+            {
+                if (inUtf)
                 {
-                    data = BitConverter.GetBytes(value);
-                }else
-                {
-                    throw new Exception($"Word not found in dictionary after cleaning. \nWord before cleaning: {words[i]}, after cleaning: {cleaned}");
+                    compressed.AddRange(payload);
+                    // 1 => ops next, 0 => clear
+                    compressed.Add(nextOps.Count > 0 ? (byte)1 : (byte)0); // can't do the high bit trick because it's UTF not an ENG short
                 }
+                else
+                {
+                    var raw = BitConverter.ToUInt16(payload, 0);
+                    raw |= 0x8000; // Set high bit to indicate ops follow
+                    compressed.AddRange(BitConverter.GetBytes(raw));
+                }
+                WriteOpsData(compressed, nextOps);
             }
         }
         else
         {
-            if (wordMap.TryGetValue(words[i], out var value))
-            {
-                data = BitConverter.GetBytes(value);
-            }
-            else throw new Exception($"Word not found in dictionary: {words[i]}");
+            compressed.AddRange(payload);
         }
-        
-        // Calculate next ops
-        if (words.Length < i + 1)
-        {
-            ops = Operator.MinApplicableOps(words[i + 1], wordMap);
-            if (ops.Count > 0)
-            {
-                if (utfBlock)
-                {
-                    compressed.AddRange(data);
-                    compressed.Add(1); // A byte of 1 at the end of a UTF block indicates that operator data is next
-                }
-                else
-                {
-                    data[0] &= 0b10000000;
-                    compressed.AddRange(data);
-                }
-            }
-            else
-            {
-                compressed.AddRange(data);
-                if(utfBlock) compressed.Add(0);
-            }
-        }
-        
+
+        ops = nextOps;
     }
+
     return compressed.ToArray();
 }
 
 string Decompress(byte[] compressed)
 {
-    StringBuilder sb = new StringBuilder();
+    if (compressed == null || compressed.Length == 0)
+    {
+        return string.Empty;
+    }
+
+    var sb = new StringBuilder();
     int i = 0;
-    
+
     // Read info byte
     byte info = compressed[i++];
-    bool startsWithUTF = (info & 1) == 1;
-    
+    bool startsWithOps = (info & 1) == 1;
     List<Operator> ops = new List<Operator>();
-    if (startsWithUTF)
+
+    if (startsWithOps)
     {
         ops = ReadOps(compressed, ref i);
     }
-    
+
     while (i < compressed.Length)
     {
         if (ops.Count > 0 && ops[0] == Operator.FlagUTFBlock)
         {
-            // Read the length of the UTF block using variable-length encoding
-            uint utfLength = Decode7BitVarUInt(compressed, ref i);
-            if (i + utfLength <= compressed.Length)
-            {
-                byte[] utfBytes = new byte[utfLength];
-                Array.Copy(compressed, i, utfBytes, 0, (int)utfLength);
-                i += (int)utfLength;
-                string utfWord = Encoding.UTF8.GetString(utfBytes);
-                sb.Append(utfWord);
-                if (i < compressed.Length && sb.Length > 0 && !sb.ToString().EndsWith(" "))
-                {
-                    sb.Append(" ");
-                }
-            }
-            
-            // Check if there's operator data next or if we continue with normal words
+            // UTF block
+            uint length = Decode7BitVarUInt(compressed, ref i);
+            if (i + length > compressed.Length)
+                throw new Exception("Unexpected end of UTF block data.");
+
+            string word = Encoding.UTF8.GetString(compressed, i, (int)length);
+            i += (int)length;
+            sb.Append(word);
+
+            // Sentinel: 1 means next ops, 0 means clear
             if (i < compressed.Length)
             {
-                byte nextByte = compressed[i];
-                if (nextByte == 1)
-                {
-                    i++; // Skip the indicator byte
+                byte sentinel = compressed[i++];
+                if (sentinel == 1)
                     ops = ReadOps(compressed, ref i);
-                }
-                else if (nextByte == 0)
-                {
-                    i++; // Skip the indicator byte
-                    ops.Clear();
-                }
                 else
-                {
                     ops.Clear();
-                }
+            }
+        }
+        else
+        {
+            if (i + 2 > compressed.Length)
+                break;
+
+            ushort raw = BitConverter.ToUInt16(compressed, i);
+            i += 2;
+            bool hasOpData = (raw & 0x8000) != 0;
+            ushort idx = (ushort)(raw & 0x7FFF);
+
+            string word = idx < wordsArr.Length ? wordsArr[idx] : "OUT_OF_BOUNDS";
+
+            // Apply operators
+            foreach (var op in ops)
+            {
+                word = op.Apply(word);
+            }
+
+            sb.Append(word);
+
+            if (hasOpData)
+            {
+                ops = ReadOps(compressed, ref i);
             }
             else
             {
                 ops.Clear();
             }
-        }
-        else
-        {
-            if (i + 1 < compressed.Length)
+
+            if (i < compressed.Length)
             {
-                ushort index = BitConverter.ToUInt16(compressed, i);
-                i += 2;
-                
-                // Check if the high bit is set (indicates operator data follows)
-                bool hasOperatorData = (index & 0x8000) != 0;
-                if (hasOperatorData)
-                {
-                    index = (ushort)(index & 0x7FFF); // Clear the high bit
-                }
-                
-                // Add word from dictionary
-                if (index < wordsArr.Length)
-                {
-                    string word = wordsArr[index];
-                    
-                    // Apply operators if they exist
-                    if (ops.Count > 0)
-                    {
-                        foreach (var op in ops)
-                        {
-                            word = op.Apply(word);
-                        }
-                    }
-                    
-                    sb.Append(word);
-                    if (i < compressed.Length)
-                    {
-                        sb.Append(' ');
-                    }
-                }
-                else
-                {
-                    sb.Append("OUT_OF_BOUNDS ");
-                }
-                
-                // Read operator data if it follows
-                if (hasOperatorData)
-                {
-                    ops = ReadOps(compressed, ref i);
-                }
-                else
-                {
-                    ops.Clear();
-                }
-            }
-            else if (i < compressed.Length)
-            {
-                // Handle single byte at end
-                Console.WriteLine("Warning: Incomplete data at the end of the compressed file. "
-                                + "This may indicate a corrupted file or an error in compression.");
-                break;
+                sb.Append(' ');
             }
         }
     }
-    return sb.ToString().TrimEnd();
+
+    return sb.ToString();
 }
+
 
 // ask the user for a file path to compress
 // ask the user if they want to compress or decompress

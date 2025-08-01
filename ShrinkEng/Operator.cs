@@ -181,49 +181,15 @@ public class Operator(
     
     public static readonly Operator SingleLineBreak = new Operator(
         10,
-        s =>
-        {
-            var trimmed = s.TrimEnd();
-            return trimmed.EndsWith("\n") && !trimmed.EndsWith("\n\n");
-        },
-        s =>
-        {
-            var trimmed = s.TrimEnd();
-            var whitespace = s[trimmed.Length..];
-            return trimmed + "\n" + whitespace;
-        },
-        s =>
-        {
-            var trimmed = s.TrimEnd();
-            var whitespace = s[trimmed.Length..];
-            return trimmed.EndsWith("\n")
-                ? trimmed[..^1] + whitespace
-                : s;
-        }, false);
+        s => s.EndsWith("\n") && !s.EndsWith("\n\n"),
+        s => s + "\n",
+        s => s[..^1], false);
     
     public static readonly Operator DoubleLineBreak = new Operator(
         11,
-        s =>
-        {
-            var trimmed = s.TrimEnd();
-            return trimmed.EndsWith("\n\n");
-        },
-        s =>
-        {
-            var trimmed = s.TrimEnd();
-            var whitespace = s[trimmed.Length..];
-            return trimmed + "\n\n" + whitespace;
-        },
-        s =>
-        {
-            var trimmed = s.TrimEnd();
-            var whitespace = s[trimmed.Length..];
-            if (trimmed.EndsWith("\n\n"))
-                return trimmed[..^2] + whitespace;
-            if (trimmed.EndsWith("\n"))
-                return trimmed[..^1] + whitespace;
-            return s;
-        }, false);
+        s => s.EndsWith("\n\n"),
+        s => s + "\n\n",
+        s => s[..^2], false);
     
     public static List<Operator> MinApplicableOps(string s, Dictionary<string, ushort> words) //TODO make this more robust and have it return the min applicable ops regardless of what all the ops are
     {
@@ -238,13 +204,14 @@ public class Operator(
                 return applicableOps;
             }
         }
+        
+        if (DoubleLineBreak.IsApplied(s)) applicableOps.Add(DoubleLineBreak);
+        else if (SingleLineBreak.IsApplied(s)) applicableOps.Add(SingleLineBreak);
 
         if (PunctuationOp(s) is { } punctuationOp)
         {
             applicableOps.Add(punctuationOp);
         }
-        if (DoubleLineBreak.IsApplied(s)) applicableOps.Add(DoubleLineBreak);
-        else if (SingleLineBreak.IsApplied(s)) applicableOps.Add(SingleLineBreak);
 
         string cleaned = applicableOps.Aggregate(s, (current, op) => op.Clean(current));
         if (words.ContainsKey(cleaned))
