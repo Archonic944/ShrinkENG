@@ -6,6 +6,7 @@ using ShrinkEng;
 // Initialization of words list (about 25k words) from embedded resource
 var assembly = Assembly.GetExecutingAssembly();
 var resourceName = "ShrinkEng.resources.wordfreq-en-25000.txt";
+const byte EXT_UTF_FLAG = 0x20; // bit5 in extension denotes UTF block (used in WritePackedOps and ReadPackedOps)
 string[] wordsArr;
 using (var stream = assembly.GetManifestResourceStream(resourceName))
 {
@@ -24,7 +25,7 @@ using (var stream = assembly.GetManifestResourceStream(resourceName))
     }
 } 
 // wordsArr will be around 25k words
-// generate a hashmap of words to ushort
+// Generate a hashmap of words to ushort
 Dictionary<string, ushort> wordMap = new Dictionary<string, ushort>();
 for (ushort i = 0; i < wordsArr.Length; i++)
 {
@@ -58,7 +59,7 @@ byte[] Compress(string s)
     compressed.Add(startsWithOps ? (byte)1 : (byte)0);
     if (startsWithOps)
     {
-        WriteOpsData(compressed, ops);
+        WritePackedOps(compressed, ops);
     }
 
     var idx = ushort.MaxValue;
@@ -107,7 +108,7 @@ byte[] Compress(string s)
                 if(nextHasOps)
                 {
                     compressed.Add(1);
-                    WriteOpsData(compressed, nextOps);
+                    WritePackedOps(compressed, nextOps);
                 }
                 else
                 {
@@ -120,7 +121,7 @@ byte[] Compress(string s)
         WriteIndexVarUInt(compressed, idx, nextHasOps);
         if (nextHasOps)
         {
-            WriteOpsData(compressed, nextOps);
+            WritePackedOps(compressed, nextOps);
         }
         finished:
         ops = nextOps;
@@ -146,7 +147,7 @@ string Decompress(byte[] compressed)
 
     if (startsWithOps)
     {
-        ops = ReadOps(compressed, ref i);
+        ops = ReadPackedOps(compressed, ref i);
     }
 
     while (i < compressed.Length)
@@ -171,7 +172,7 @@ string Decompress(byte[] compressed)
             {
                 byte sentinel = compressed[i++];
                 if (sentinel == 1)
-                    ops = ReadOps(compressed, ref i);
+                    ops = ReadPackedOps(compressed, ref i);
                 else
                     ops.Clear();
             }
@@ -196,7 +197,7 @@ string Decompress(byte[] compressed)
 
             if (hasOpData)
             {
-                ops = ReadOps(compressed, ref i);
+                ops = ReadPackedOps(compressed, ref i);
             }
             else
             {
@@ -383,6 +384,114 @@ static uint ReadIndexVarUInt(byte[] src, ref int idx, out bool opsFollow)
         }
     }
     return value;
+}
+
+// Packed operator state (primary + optional extension)
+static void WritePackedOps(List<byte> dst, List<Operator> ops)
+{
+    // Detect UTF block
+    bool isUtf = ops.Count > 0 && ReferenceEquals(ops[0], Operator.FlagUTFBlock);
+
+    byte casing = 0; // 0 none, 1 Capitalize, 2 AllCaps
+    byte punct  = 0; // 0 none, 1 ., 2 ,, 3 ?, 4 !, 5 ..., 6 :, 7 ;
+    byte quotes = 0; // bits: 1=open, 2=close (3=both)
+    byte ws     = 0; // 0 none, 1 \n, 2 \n\n, 3 \t
+
+    if (!isUtf)
+    {
+        if (ops.Contains(Operator.AllCaps)) casing = 2;
+        else if (ops.Contains(Operator.Capitalize)) casing = 1;
+
+        if (ops.Contains(Operator.Period)) punct = 1;
+        else if (ops.Contains(Operator.Comma)) punct = 2;
+        else if (ops.Contains(Operator.Question)) punct = 3;
+        else if (ops.Contains(Operator.Exclamation)) punct = 4;
+        else if (ops.Contains(Operator.Ellipses)) punct = 5;
+        else if (ops.Contains(Operator.Colon)) punct = 6;
+        else if (ops.Contains(Operator.Semicolon)) punct = 7;
+
+        if (ops.Contains(Operator.OpenQuote))  quotes |= 0x1;
+        if (ops.Contains(Operator.CloseQuote)) quotes |= 0x2;
+
+        if (ops.Contains(Operator.Tab)) ws = 3;
+        else if (ops.Contains(Operator.DoubleLineBreak)) ws = 2;
+        else if (ops.Contains(Operator.SingleLineBreak)) ws = 1;
+    }
+
+    // Primary: [b7 ext][b6..5 casing][b4..2 punct][b1..b0 quotes]
+    byte primary = 0;
+    primary |= (byte)(casing << 5);
+    primary |= (byte)(punct  << 2);
+    primary |= (byte)(quotes);
+
+    bool hasExt = isUtf || ws != 0;   // need extension if UTF or whitespace present
+    if (hasExt) primary |= 0x80;
+    dst.Add(primary);
+
+    if (hasExt)
+    {
+        // Extension: [b7..b6 whitespace][b5 utfFlag][b4..b0 reserved=0]
+        byte ext = 0;
+        ext |= (byte)(ws << 6);
+        if (isUtf) ext |= EXT_UTF_FLAG;
+        dst.Add(ext);
+    }
+}
+
+
+static List<Operator> ReadPackedOps(byte[] bytes, ref int index)
+{
+    var ops = new List<Operator>();
+
+    byte primary = bytes[index++];
+
+    byte casing = (byte)((primary >> 5) & 0x3);
+    byte punct  = (byte)((primary >> 2) & 0x7);
+    byte quotes = (byte)(primary & 0x3);
+    bool hasExt = (primary & 0x80) != 0;
+
+    byte ws = 0;
+    bool isUtf = false;
+    if (hasExt)
+    {
+        byte ext = bytes[index++];
+        ws    = (byte)((ext >> 6) & 0x3);
+        isUtf = (ext & EXT_UTF_FLAG) != 0;
+    }
+
+    if (isUtf)
+    {
+        ops.Add(Operator.FlagUTFBlock);
+        return ops;
+    }
+
+    // Rebuild in canonical order: casing, open-quote, punctuation, close-quote, whitespace
+    if (casing == 2) ops.Add(Operator.AllCaps);
+    else if (casing == 1) ops.Add(Operator.Capitalize);
+
+    if ((quotes & 0x1) != 0) ops.Add(Operator.OpenQuote);
+
+    switch (punct)
+    {
+        case 1: ops.Add(Operator.Period); break;
+        case 2: ops.Add(Operator.Comma); break;
+        case 3: ops.Add(Operator.Question); break;
+        case 4: ops.Add(Operator.Exclamation); break;
+        case 5: ops.Add(Operator.Ellipses); break;
+        case 6: ops.Add(Operator.Colon); break;
+        case 7: ops.Add(Operator.Semicolon); break;
+    }
+
+    if ((quotes & 0x2) != 0) ops.Add(Operator.CloseQuote);
+
+    switch (ws)
+    {
+        case 1: ops.Add(Operator.SingleLineBreak); break;
+        case 2: ops.Add(Operator.DoubleLineBreak); break;
+        case 3: ops.Add(Operator.Tab); break;
+    }
+
+    return ops;
 }
 
 void WriteOpsData(List<byte> compressedStream, List<Operator> ops)
