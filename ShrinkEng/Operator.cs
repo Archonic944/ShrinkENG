@@ -17,13 +17,13 @@ public class Operator(
     public string Apply(string s) => apply(s);
     public string Clean(string s) => clean(s);
 
-    public static readonly Operator FlagUTFBlock = new Operator( // UTFBlock is a stub operator that's only to identify a UTF block; application is handled elsewhere
+    public static readonly Operator FlagUTFBlock = new( // UTFBlock is a stub operator that's only to identify a UTF block; application is handled elsewhere
         0,
-        s => true,
+        _ => true,
         s => s,
         s => s, true, false);
 
-    public static readonly Operator Capitalize = new Operator( // The first character that is a letter is capitalized
+    public static readonly Operator Capitalize = new( // The first character that is a letter is capitalized
         1,
         s => (from c in s where char.IsLetter(c) select !char.IsLower(c)).FirstOrDefault(),
         s =>
@@ -49,7 +49,7 @@ public class Operator(
             return s;
         }, false, false);
     
-    public static readonly Operator AllCaps = new Operator( // All letters are capitalized
+    public static readonly Operator AllCaps = new( // All letters are capitalized
         2,
         s =>
         {
@@ -64,7 +64,7 @@ public class Operator(
         s => s.ToUpperInvariant(),
         s => s.ToLowerInvariant(), false, false);
     
-    public static readonly Operator Period = new Operator(
+    public static readonly Operator Period = new(
         3,
         s => s.TrimEnd().EndsWith('.'),
         s => 
@@ -80,7 +80,7 @@ public class Operator(
             return trimmed.EndsWith('.') ? trimmed[..^1] + whitespace : s;
         }, false, false);
 
-    public static readonly Operator Exclamation = new Operator(
+    public static readonly Operator Exclamation = new(
         4,
         s => s.TrimEnd().EndsWith('!'),
         s => 
@@ -96,7 +96,7 @@ public class Operator(
             return trimmed.EndsWith('!') ? trimmed[..^1] + whitespace : s;
         }, false, false);
     
-    public static readonly Operator Question = new Operator(
+    public static readonly Operator Question = new(
         5,
         s => s.TrimEnd().EndsWith('?'),
         s => 
@@ -112,7 +112,7 @@ public class Operator(
             return trimmed.EndsWith('?') ? trimmed[..^1] + whitespace : s;
         }, false, false);
     
-    public static readonly Operator Ellipses = new Operator(
+    public static readonly Operator Ellipses = new(
         6,
         s => s.TrimEnd().EndsWith("...") || s.TrimEnd().EndsWith('…'),
         s => 
@@ -132,7 +132,7 @@ public class Operator(
             return s;
         }, false, false);
     
-    public static readonly Operator Comma = new Operator(
+    public static readonly Operator Comma = new(
         7,
         s => s.TrimEnd().EndsWith(','),
         s => 
@@ -148,7 +148,7 @@ public class Operator(
             return trimmed.EndsWith(',') ? trimmed[..^1] + whitespace : s;
         }, false, false);
     
-    public static readonly Operator Colon = new Operator(
+    public static readonly Operator Colon = new(
         8,
         s => s.TrimEnd().EndsWith(':'),
         s => 
@@ -164,7 +164,7 @@ public class Operator(
             return trimmed.EndsWith(':') ? trimmed[..^1] + whitespace : s;
         }, false, false);
     
-    public static readonly Operator Semicolon = new Operator(
+    public static readonly Operator Semicolon = new(
         9,
         s => s.TrimEnd().EndsWith(';'),
         s => 
@@ -180,25 +180,25 @@ public class Operator(
             return trimmed.EndsWith(';') ? trimmed[..^1] + whitespace : s;
         }, false, false);
     
-    public static readonly Operator SingleLineBreak = new Operator(
+    public static readonly Operator SingleLineBreak = new(
         10,
         s => s.EndsWith("\n") && !s.EndsWith("\n\n"),
         s => s + "\n",
         s => s[..^1], false, true);
     
-    public static readonly Operator DoubleLineBreak = new Operator(
+    public static readonly Operator DoubleLineBreak = new(
         11,
         s => s.EndsWith("\n\n"),
         s => s + "\n\n",
         s => s[..^2], false, true);
     
-    public static readonly Operator Tab = new Operator(
+    public static readonly Operator Tab = new(
         12,
         s => s.EndsWith("\t"),
         s => s + "\t",
         s => s[..^1], false, true);
     
-    public static readonly Operator CloseQuote = new Operator(
+    public static readonly Operator CloseQuote = new(
         13,
         s => s.TrimEnd().EndsWith('“') || s.TrimEnd().EndsWith('"'),
         s => {
@@ -218,10 +218,10 @@ public class Operator(
             return s;
         }, false, false);
 
-    public static readonly Operator OpenQuote = new Operator(
+    public static readonly Operator OpenQuote = new(
             14,
             (s) => s.StartsWith('“') || s.StartsWith('"'),
-            (s) => s + "",
+            (s) => '"' + s,
             (s) => s[1..], 
             false, false);
     public static List<Operator> MinApplicableOps(string s, Dictionary<string, ushort> words) //TODO make this more robust and have it return the min applicable ops regardless of what all the ops are
