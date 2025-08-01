@@ -1,4 +1,6 @@
-﻿using System.Numerics;
+﻿//TODO: not much! just some extra spaces littered around the decompressed file for some reason.
+//also, it's adding random quotes... see beemovie_fuller line 1067 
+using System.Numerics;
 using System.Reflection;
 using System.Text;
 using ShrinkEng;
@@ -176,7 +178,10 @@ string Decompress(byte[] compressed)
             string word = Encoding.UTF8.GetString(compressed, i, (int)length);
             i += (int)length;
             sb.Append(word);
-            if (i < compressed.Length) sb.Append(' ');
+            if (i < compressed.Length && word.TrimEnd().Length == word.Length)
+            {
+                sb.Append(' ');
+            }
 
             // Sentinel: 1 means next ops, 0 means clear
             if (i < compressed.Length)
