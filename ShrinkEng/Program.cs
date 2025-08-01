@@ -51,6 +51,12 @@ byte[] Compress(string s)
     }
 
     var words = ShrinkUtils.SplitKeepTrailingDelimiter(s, "@\n\n|[\n\t ]");
+    // Clean spaces from ends of words without removing other whitespace
+    for (int i = 0; i < words.Count; i++)
+    {
+        if(words[i].EndsWith(' ')) words[i] = words[i][..^1];
+    }
+    
     var compressed = new List<byte>(words.Count * sizeof(ushort) + 8);
 
     // Determine initial ops
@@ -68,7 +74,6 @@ byte[] Compress(string s)
         bool hasOps = ops.Count > 0;
         bool inUtf = hasOps && ops[0] == Operator.FlagUTFBlock;
         byte[] payload;
-        if (words[i].EndsWith(' ')) words[i] = words[i][..^1];
         if (inUtf)
         {
             // UTF block: write payload length and bytes
@@ -107,7 +112,15 @@ byte[] Compress(string s)
             if (inUtf)
             {
                 compressed.AddRange(payload);
-                compressed.Add(nextOps.Count > 0 ? (byte)1 : (byte)0); // can't do the high bit trick because it's UTF not an ENG short
+                if(nextOps.Count > 0)
+                {
+                    compressed.Add(1);
+                    WriteOpsData(compressed, nextOps);
+                }
+                else
+                {
+                    compressed.Add(0);
+                }
             }else if (nextOps.Count > 0)
             {
                 var raw = BitConverter.ToUInt16(payload, 0);
@@ -163,6 +176,7 @@ string Decompress(byte[] compressed)
             string word = Encoding.UTF8.GetString(compressed, i, (int)length);
             i += (int)length;
             sb.Append(word);
+            if (i < compressed.Length) sb.Append(' ');
 
             // Sentinel: 1 means next ops, 0 means clear
             if (i < compressed.Length)
@@ -207,7 +221,10 @@ string Decompress(byte[] compressed)
 
             if (i < compressed.Length)
             {
-                if(!noSpace) sb.Append(' ');
+                if (!noSpace)
+                {
+                    sb.Append(' ');
+                }
             }
         }
     }
