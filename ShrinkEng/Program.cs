@@ -61,16 +61,17 @@ byte[] Compress(string s)
         WriteOpsData(compressed, ops);
     }
 
+    var idx = ushort.MaxValue;
     for (int i = 0; i < words.Count; i++)
     {
         bool hasOps = ops.Count > 0;
         bool inUtf = hasOps && ops[0] == Operator.FlagUTFBlock;
-        byte[] payload;
         if (inUtf)
         {
             // UTF block: write payload length and bytes
-            payload = Encoding.UTF8.GetBytes(words[i]);
+            var payload = Encoding.UTF8.GetBytes(words[i]);
             compressed.AddRange(Encode7BitVarUInt((uint)payload.Length));
+            compressed.AddRange(payload);
         }
         else if(hasOps)
         {
@@ -80,31 +81,30 @@ byte[] Compress(string s)
             {
                 cleaned = op.Clean(cleaned);
             }
-            if (!wordMap.TryGetValue(cleaned, out ushort idx))
+            if (!wordMap.TryGetValue(cleaned, out idx))
             {
                 throw new Exception($"Word not found in dictionary: '{words[i]}' cleaned to '{cleaned}'");
             }
-            payload = BitConverter.GetBytes(idx);
             //compressed.AddRange(payload);
         }
         else
         {
-            if(!wordMap.TryGetValue(words[i], out var idx))
+            if(!wordMap.TryGetValue(words[i], out idx))
             {
                 throw new Exception($"Word not found in dictionary: '{words[i]}'");
             }
-            payload = BitConverter.GetBytes(idx);
         }
-
+        
         // Prepare ops for next word
+        bool nextHasOps = false;
         List<Operator> nextOps = new List<Operator>();
         if (i + 1 < words.Count)
         {
             nextOps = Operator.MinApplicableOps(words[i + 1], wordMap);
+            if (nextOps.Count > 0) nextHasOps = true;
             if (inUtf)
             {
-                compressed.AddRange(payload);
-                if(nextOps.Count > 0)
+                if(nextHasOps)
                 {
                     compressed.Add(1);
                     WriteOpsData(compressed, nextOps);
@@ -113,23 +113,16 @@ byte[] Compress(string s)
                 {
                     compressed.Add(0);
                 }
-            }else if (nextOps.Count > 0)
-            {
-                var raw = BitConverter.ToUInt16(payload, 0);
-                raw |= 0x8000; // Set high bit to indicate ops follow
-                compressed.AddRange(BitConverter.GetBytes(raw));
-                WriteOpsData(compressed, nextOps);
-            }
-            else
-            {
-                compressed.AddRange(payload);
-            }
-        }
-        else
-        {
-            compressed.AddRange(payload);
-        }
 
+                goto finished;
+            }
+        }
+        WriteIndexVarUInt(compressed, idx, nextHasOps);
+        if (nextHasOps)
+        {
+            WriteOpsData(compressed, nextOps);
+        }
+        finished:
         ops = nextOps;
     }
 
@@ -185,13 +178,9 @@ string Decompress(byte[] compressed)
         }
         else
         {
-            if (i + 2 > compressed.Length)
-                break;
 
-            ushort raw = BitConverter.ToUInt16(compressed, i);
-            i += 2;
-            bool hasOpData = (raw & 0x8000) != 0;
-            ushort idx = (ushort)(raw & 0x7FFF);
+            uint idx32 = ReadIndexVarUInt(compressed, ref i, out bool hasOpData);
+            ushort idx = (ushort)idx32;  // only safe if |dict| is < 65536
 
             string word = idx < wordsArr.Length ? wordsArr[idx] : "OUT_OF_BOUNDS";
 
@@ -352,6 +341,46 @@ uint Decode7BitVarUInt(byte[] bytes, ref int index)
             break;
         }
         shift += 7;
+    }
+    return value;
+}
+
+// Write a 7-bit varuint, reserving bit6 of the last byte to signal "ops follow"
+static void WriteIndexVarUInt(List<byte> dst, uint value, bool opsFollow)
+{
+    // emit full 7-bit chunks with continuation bit
+    while (value >= 0x40)  // leave 6 bits for last byte
+    {
+        dst.Add((byte)((value & 0x7F) | 0x80));
+        value >>= 7;
+    }
+    // final byte: 0x80=0 (end), bit6=opsFollow, bits0–5=data
+    byte last = (byte)(value & 0x3F);
+    if (opsFollow) last |= 0x40;
+    dst.Add(last);
+}
+
+// Read a 7-bit varuint; on the last byte, extract opsFollow from bit6
+static uint ReadIndexVarUInt(byte[] src, ref int idx, out bool opsFollow)
+{
+    uint value = 0;
+    int shift = 0;
+    while (true)
+    {
+        byte b = src[idx++];
+        if ((b & 0x80) != 0)
+        {
+            // continuation
+            value |= (uint)(b & 0x7F) << shift;
+            shift += 7;
+        }
+        else
+        {
+            // last byte
+            opsFollow = (b & 0x40) != 0;
+            value |= (uint)(b & 0x3F) << shift;
+            break;
+        }
     }
     return value;
 }
