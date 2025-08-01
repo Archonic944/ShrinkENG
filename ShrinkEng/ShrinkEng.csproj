@@ -8,10 +8,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <Folder Include="resources\" />
-    </ItemGroup>
-
-    <ItemGroup>
       <None Remove="resources\english_25k.txt" />
       <EmbeddedResource Include="resources\english_25k.txt" />
       <None Remove="resources\wordfreq-en-25000.txt" />
