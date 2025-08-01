@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Text;
 using ShrinkEng;
 
-// Initialization of words list
+// Initialization of words list (about 25k words) from embedded resource
 var assembly = Assembly.GetExecutingAssembly();
 var resourceName = "ShrinkEng.resources.wordfreq-en-25000.txt";
 var test = "ShrinkEng\nIs Awesome\n";
@@ -50,8 +50,8 @@ byte[] Compress(string s)
         return [];
     }
 
-    string[] words = s.Split(' ');
-    var compressed = new List<byte>(words.Length * sizeof(ushort) + 8);
+    var words = ShrinkUtils.SplitKeepTrailingDelimiter(s, "@\n\n|[\n\t ]");
+    var compressed = new List<byte>(words.Count * sizeof(ushort) + 8);
 
     // Determine initial ops
     var ops = Operator.MinApplicableOps(words[0], wordMap);
@@ -63,18 +63,17 @@ byte[] Compress(string s)
         WriteOpsData(compressed, ops);
     }
 
-    for (int i = 0; i < words.Length; i++)
+    for (int i = 0; i < words.Count; i++)
     {
         bool hasOps = ops.Count > 0;
         bool inUtf = hasOps && ops[0] == Operator.FlagUTFBlock;
         byte[] payload;
-
+        if (words[i].EndsWith(' ')) words[i] = words[i][..^1];
         if (inUtf)
         {
             // UTF block: write payload length and bytes
             payload = Encoding.UTF8.GetBytes(words[i]);
             compressed.AddRange(Encode7BitVarUInt((uint)payload.Length));
-            compressed.AddRange(payload);
         }
         else if(hasOps)
         {
@@ -102,24 +101,23 @@ byte[] Compress(string s)
 
         // Prepare ops for next word
         List<Operator> nextOps = new List<Operator>();
-        if (i + 1 < words.Length)
+        if (i + 1 < words.Count)
         {
             nextOps = Operator.MinApplicableOps(words[i + 1], wordMap);
-            if (nextOps.Count > 0)
+            if (inUtf)
             {
-                if (inUtf)
-                {
-                    compressed.AddRange(payload);
-                    // 1 => ops next, 0 => clear
-                    compressed.Add(nextOps.Count > 0 ? (byte)1 : (byte)0); // can't do the high bit trick because it's UTF not an ENG short
-                }
-                else
-                {
-                    var raw = BitConverter.ToUInt16(payload, 0);
-                    raw |= 0x8000; // Set high bit to indicate ops follow
-                    compressed.AddRange(BitConverter.GetBytes(raw));
-                }
+                compressed.AddRange(payload);
+                compressed.Add(nextOps.Count > 0 ? (byte)1 : (byte)0); // can't do the high bit trick because it's UTF not an ENG short
+            }else if (nextOps.Count > 0)
+            {
+                var raw = BitConverter.ToUInt16(payload, 0);
+                raw |= 0x8000; // Set high bit to indicate ops follow
+                compressed.AddRange(BitConverter.GetBytes(raw));
                 WriteOpsData(compressed, nextOps);
+            }
+            else
+            {
+                compressed.AddRange(payload);
             }
         }
         else
@@ -188,10 +186,12 @@ string Decompress(byte[] compressed)
 
             string word = idx < wordsArr.Length ? wordsArr[idx] : "OUT_OF_BOUNDS";
 
+            bool noSpace = false;
             // Apply operators
             foreach (var op in ops)
             {
                 word = op.Apply(word);
+                noSpace = noSpace || op.OverwriteTrailingSpace;
             }
 
             sb.Append(word);
@@ -207,7 +207,7 @@ string Decompress(byte[] compressed)
 
             if (i < compressed.Length)
             {
-                sb.Append(' ');
+                if(!noSpace) sb.Append(' ');
             }
         }
     }
