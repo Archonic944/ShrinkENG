@@ -198,6 +198,32 @@ public class Operator(
         s => s + "\t",
         s => s[..^1], false, true);
     
+    public static readonly Operator CloseQuote = new Operator(
+        13,
+        s => s.TrimEnd().EndsWith('“') || s.TrimEnd().EndsWith('"'),
+        s => {
+            var trimmed = s.TrimEnd();
+            var whitespace = s[trimmed.Length..];
+            return trimmed + '"' + whitespace;
+        },
+        s =>
+        {
+            var trimmed = s.TrimEnd();
+            var whitespace = s[trimmed.Length..];
+            if (trimmed.EndsWith('“') || trimmed.EndsWith('"'))
+            {
+                return trimmed[..^1] + whitespace;
+            }
+
+            return s;
+        }, false, false);
+
+    public static readonly Operator OpenQuote = new Operator(
+            14,
+            (s) => s.StartsWith('“') || s.StartsWith('"'),
+            (s) => s + "",
+            (s) => s[1..], 
+            false, false);
     public static List<Operator> MinApplicableOps(string s, Dictionary<string, ushort> words) //TODO make this more robust and have it return the min applicable ops regardless of what all the ops are
     {
         if (words.ContainsKey(s)) return [];
@@ -212,13 +238,18 @@ public class Operator(
             }
         }
         
-        if (DoubleLineBreak.IsApplied(s)) applicableOps.Add(DoubleLineBreak);
-        else if (SingleLineBreak.IsApplied(s)) applicableOps.Add(SingleLineBreak);
-
+        if(OpenQuote.IsApplied(s)) applicableOps.Add(OpenQuote);
+        
         if (PunctuationOp(s) is { } punctuationOp)
         {
             applicableOps.Add(punctuationOp);
         }
+        
+        if (CloseQuote.IsApplied(s)) applicableOps.Add(CloseQuote);
+        
+        if(Tab.IsApplied(s)) applicableOps.Add(Tab);
+        else if (DoubleLineBreak.IsApplied(s)) applicableOps.Add(DoubleLineBreak);
+        else if (SingleLineBreak.IsApplied(s)) applicableOps.Add(SingleLineBreak);
 
         string cleaned = applicableOps.Aggregate(s, (current, op) => op.Clean(current));
         if (words.ContainsKey(cleaned))
@@ -259,6 +290,8 @@ public class Operator(
         { 9, Semicolon },
         {10, SingleLineBreak},
         {11, DoubleLineBreak},
-        {12, Tab}
+        {12, Tab},
+        {13, CloseQuote},
+        {14, OpenQuote}
     };
 }
