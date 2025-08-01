@@ -6,14 +6,6 @@ using ShrinkEng;
 // Initialization of words list (about 25k words) from embedded resource
 var assembly = Assembly.GetExecutingAssembly();
 var resourceName = "ShrinkEng.resources.wordfreq-en-25000.txt";
-var test = "ShrinkEng\nIs Awesome\n";
-string textTest = "apple, banana;cherry|date";
-// delimiters: comma, semicolon, or pipe
-var parts = ShrinkUtils.SplitKeepTrailingDelimiter(textTest, "[,;|]");
-
-// parts: ["apple,", " banana;", "cherry|", "date"]
-foreach (var part in parts)
-    Console.WriteLine($"[{part}]");
 string[] wordsArr;
 using (var stream = assembly.GetManifestResourceStream(resourceName))
 {
