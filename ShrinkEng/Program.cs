@@ -6,7 +6,9 @@ using ShrinkEng;
 // Initialization of words list (about 25k words) from embedded resource
 var assembly = Assembly.GetExecutingAssembly();
 var resourceName = "ShrinkEng.resources.wordfreq-en-25000.txt";
-const byte EXT_UTF_FLAG = 0x20; // bit5 in extension denotes UTF block (used in WritePackedOps and ReadPackedOps)
+// Flags for packed operators
+const byte EXT_UTF_FLAG = 0x20;          
+const byte EXT_SEMI_FLAG = 0x10;         
 string[] wordsArr;
 using (var stream = assembly.GetManifestResourceStream(resourceName))
 {
@@ -386,114 +388,153 @@ static uint ReadIndexVarUInt(byte[] src, ref int idx, out bool opsFollow)
     return value;
 }
 
-// Packed operator state (primary + optional extension)
+/*
+Packed Operator State Schema (will live here until I have documentation):
+
+Primary Byte (1 byte):
++---------+---------+---------+--------+
+| 7: Ext  | 6 - 5:  | 4 - 2:  | 1 - 0: |
+| (flag)  | Casing  | Punct   | Quotes |
++---------+---------+---------+--------+
+
+- Bit 7: Extension byte present (1 = yes, 0 = no)
+- Bits 6-5: Casing
+    00 = none
+    01 = Capitalize first letter
+    10 = ALL CAPS
+    11 = reserved
+- Bits 4-2: Punctuation or single LF
+    000 = none
+    001 = period '.'
+    010 = comma ','
+    011 = question '?'
+    100 = exclamation '!'
+    101 = ellipses '...'
+    110 = colon ':'
+    111 = single line feed '\n'
+- Bits 1-0: Quotes
+    00 = none
+    01 = open quote
+    10 = close quote
+    11 = both quotes (rare, can be moved to extension if needed)
+
+Extension Byte (optional, 1 byte if Bit 7 in primary set):
++---------+---------+---------+---------+
+| 7 - 6:  | 5: UTF   | 4: Semicolon | 3 - 0: reserved |
+| Whitespace class | Flag    | Flag      |                |
++---------+---------+---------+---------+
+
+- Bits 7-6: Whitespace class
+    00 = none
+    01 = single LF (when punctuation slot is occupied)
+    10 = double LF '\n\n'
+    11 = tab '\t'
+- Bit 5: UTF block flag (1 = token is raw UTF bytes)
+- Bit 4: Semicolon flag (1 = append semicolon ';')
+- Bits 3-0: Reserved for future extensions or flags
+
+*/
+
 static void WritePackedOps(List<byte> dst, List<Operator> ops)
 {
-    // Detect UTF block
-    bool isUtf = ops.Count > 0 && ReferenceEquals(ops[0], Operator.FlagUTFBlock);
+    bool isUtf  = ops.Contains(Operator.FlagUTFBlock);
+    bool hasSemi= ops.Contains(Operator.Semicolon);
 
-    byte casing = 0; // 0 none, 1 Capitalize, 2 AllCaps
-    byte punct  = 0; // 0 none, 1 ., 2 ,, 3 ?, 4 !, 5 ..., 6 :, 7 ;
-    byte quotes = 0; // bits: 1=open, 2=close (3=both)
-    byte ws     = 0; // 0 none, 1 \n, 2 \n\n, 3 \t
-    bool extSmi = false; // has semicolon
+    bool lf1 = ops.Contains(Operator.SingleLineBreak);
+    bool lf2 = ops.Contains(Operator.DoubleLineBreak);
+    bool tab = ops.Contains(Operator.Tab);
 
-    if (!isUtf)
-    {
-        if (ops.Contains(Operator.AllCaps)) casing = 2;
-        else if (ops.Contains(Operator.Capitalize)) casing = 1;
+    byte casing = ops.Contains(Operator.AllCaps)       ? (byte)2 :
+                  ops.Contains(Operator.Capitalize)    ? (byte)1 : (byte)0;
 
-        if (ops.Contains(Operator.Period)) punct = 1;
-        else if (ops.Contains(Operator.Comma)) punct = 2;
-        else if (ops.Contains(Operator.Question)) punct = 3;
-        else if (ops.Contains(Operator.Exclamation)) punct = 4;
-        else if (ops.Contains(Operator.Ellipses)) punct = 5;
-        else if (ops.Contains(Operator.Colon)) punct = 6;
-        else if (ops.Contains(Operator.Semicolon)) punct = 7; // bump to ext
+    byte punct = 0;
+         if (ops.Contains(Operator.Period))       punct = 1;
+    else if (ops.Contains(Operator.Comma))        punct = 2;
+    else if (ops.Contains(Operator.Question))     punct = 3;
+    else if (ops.Contains(Operator.Exclamation))  punct = 4;
+    else if (ops.Contains(Operator.Ellipses))     punct = 5;
+    else if (ops.Contains(Operator.Colon))        punct = 6;
+    // semicolon handled via ext flag
 
-        if (ops.Contains(Operator.OpenQuote))  quotes |= 0x1;
-        if (ops.Contains(Operator.CloseQuote)) quotes |= 0x2;
+    byte wsBits = 0;                 // 0 none,1 LF,2 LF LF,3 tab
+    if (lf2)      wsBits = 2;
+    else if (tab) wsBits = 3;
 
-        if (ops.Contains(Operator.Tab)) ws = 3;
-        else if (ops.Contains(Operator.DoubleLineBreak)) ws = 2;
-        else if (ops.Contains(Operator.SingleLineBreak)) ws = 1;
-    }
+    if (punct == 0 && lf1)           // no real punct, put LF in primary
+        punct = 7;
+    else if (lf1)                    // punctuation already used, LF to ext
+        wsBits = 1;
 
-    // Primary: [b7 ext][b6..5 casing][b4..2 punct][b1..b0 quotes]
-    byte primary = 0;
-    primary |= (byte)(casing << 5);
-    primary |= (byte)(punct  << 2);
-    primary |= (byte)(quotes);
+    bool hasExt = isUtf || hasSemi || wsBits != 0;
 
-    bool hasExt = isUtf || ws != 0 || extSmi; // need extension if UTF or whitespace present
-    if (hasExt) primary |= 0x80;
+    byte primary = (byte)(
+        (hasExt ? 0x80 : 0) |
+        (casing << 5) |
+        (punct  << 2) |
+        ((ops.Contains(Operator.OpenQuote)  ? 1 : 0) |
+         (ops.Contains(Operator.CloseQuote) ? 2 : 0))
+    );
     dst.Add(primary);
 
     if (hasExt)
     {
-        // Extension: [b7..b6 whitespace][b5 utfFlag][b4..b0 reserved=0]
-        byte ext = 0;
-        ext |= (byte)(ws << 6);
-        if (isUtf) ext |= EXT_UTF_FLAG;
+        byte ext = (byte)(wsBits << 6);
+        if (isUtf)   ext |= EXT_UTF_FLAG;
+        if (hasSemi) ext |= EXT_SEMI_FLAG;
         dst.Add(ext);
     }
 }
 
-
-static List<Operator> ReadPackedOps(byte[] bytes, ref int index)
+static List<Operator> ReadPackedOps(byte[] bytes, ref int idx)
 {
     var ops = new List<Operator>();
 
-    byte primary = bytes[index++];
+    byte p   = bytes[idx++];
+    bool ext = (p & 0x80) != 0;
+    byte casing = (byte)((p >> 5) & 0x3);
+    byte punct  = (byte)((p >> 2) & 0x7);
+    byte quotes = (byte)( p       & 0x3);
 
-    byte casing = (byte)((primary >> 5) & 0x3);
-    byte punct  = (byte)((primary >> 2) & 0x7);
-    byte quotes = (byte)(primary & 0x3);
-    bool hasExt = (primary & 0x80) != 0;
-
-    byte ws = 0;
-    bool isUtf = false;
-    if (hasExt)
+    bool isUtf   = false;
+    bool hasSemi = false;
+    byte wsBits  = 0;
+    if (ext)
     {
-        byte ext = bytes[index++];
-        ws    = (byte)((ext >> 6) & 0x3);
-        isUtf = (ext & EXT_UTF_FLAG) != 0;
+        byte e = bytes[idx++];
+        wsBits  = (byte)((e >> 6) & 0x3);
+        isUtf   = (e & EXT_UTF_FLAG)  != 0;
+        hasSemi = (e & EXT_SEMI_FLAG) != 0;
     }
 
-    if (isUtf)
-    {
-        ops.Add(Operator.FlagUTFBlock);
-        return ops;
-    }
+    if (isUtf) { ops.Add(Operator.FlagUTFBlock); return ops; }
 
-    // Rebuild in canonical order: casing, open-quote, punctuation, close-quote, whitespace
-    if (casing == 2) ops.Add(Operator.AllCaps);
-    else if (casing == 1) ops.Add(Operator.Capitalize);
+    if (casing == 1) ops.Add(Operator.Capitalize);
+    else if (casing == 2) ops.Add(Operator.AllCaps);
 
-    if ((quotes & 0x1) != 0) ops.Add(Operator.OpenQuote);
+    if ((quotes & 1) != 0) ops.Add(Operator.OpenQuote);
 
     switch (punct)
     {
-        case 1: ops.Add(Operator.Period); break;
-        case 2: ops.Add(Operator.Comma); break;
-        case 3: ops.Add(Operator.Question); break;
-        case 4: ops.Add(Operator.Exclamation); break;
-        case 5: ops.Add(Operator.Ellipses); break;
-        case 6: ops.Add(Operator.Colon); break;
-        case 7: ops.Add(Operator.Semicolon); break;
+        case 1: ops.Add(Operator.Period);           break;
+        case 2: ops.Add(Operator.Comma);            break;
+        case 3: ops.Add(Operator.Question);         break;
+        case 4: ops.Add(Operator.Exclamation);      break;
+        case 5: ops.Add(Operator.Ellipses);         break;
+        case 6: ops.Add(Operator.Colon);            break;
+        case 7: ops.Add(Operator.SingleLineBreak);  break;
     }
 
-    if ((quotes & 0x2) != 0) ops.Add(Operator.CloseQuote);
+    if ((quotes & 2) != 0) ops.Add(Operator.CloseQuote);
 
-    switch (ws)
-    {
-        case 1: ops.Add(Operator.SingleLineBreak); break;
-        case 2: ops.Add(Operator.DoubleLineBreak); break;
-        case 3: ops.Add(Operator.Tab); break;
-    }
+    if      (wsBits == 1) ops.Add(Operator.SingleLineBreak);
+    else if (wsBits == 2) ops.Add(Operator.DoubleLineBreak);
+    else if (wsBits == 3) ops.Add(Operator.Tab);
+
+    if (hasSemi) ops.Add(Operator.Semicolon);
 
     return ops;
 }
+
 
 void WriteOpsData(List<byte> compressedStream, List<Operator> ops)
 {

@@ -57,3 +57,5 @@ nunit-*.xml
 ShrinkEng/test/
 ShrinkEng/.DS_Store
 .DS_Store
+.DS_Store
+ShrinkEng/.DS_Store
