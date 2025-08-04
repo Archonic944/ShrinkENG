@@ -396,6 +396,7 @@ static void WritePackedOps(List<byte> dst, List<Operator> ops)
     byte punct  = 0; // 0 none, 1 ., 2 ,, 3 ?, 4 !, 5 ..., 6 :, 7 ;
     byte quotes = 0; // bits: 1=open, 2=close (3=both)
     byte ws     = 0; // 0 none, 1 \n, 2 \n\n, 3 \t
+    bool extSmi = false; // has semicolon
 
     if (!isUtf)
     {
@@ -408,7 +409,7 @@ static void WritePackedOps(List<byte> dst, List<Operator> ops)
         else if (ops.Contains(Operator.Exclamation)) punct = 4;
         else if (ops.Contains(Operator.Ellipses)) punct = 5;
         else if (ops.Contains(Operator.Colon)) punct = 6;
-        else if (ops.Contains(Operator.Semicolon)) punct = 7;
+        else if (ops.Contains(Operator.Semicolon)) punct = 7; // bump to ext
 
         if (ops.Contains(Operator.OpenQuote))  quotes |= 0x1;
         if (ops.Contains(Operator.CloseQuote)) quotes |= 0x2;
@@ -424,7 +425,7 @@ static void WritePackedOps(List<byte> dst, List<Operator> ops)
     primary |= (byte)(punct  << 2);
     primary |= (byte)(quotes);
 
-    bool hasExt = isUtf || ws != 0;   // need extension if UTF or whitespace present
+    bool hasExt = isUtf || ws != 0 || extSmi; // need extension if UTF or whitespace present
     if (hasExt) primary |= 0x80;
     dst.Add(primary);
 
