@@ -9,7 +9,6 @@ namespace ShrinkENG
     {
         [UI] private TextView OutputTextView = null;
         [UI] private Button ChooseFileButton = null;
-        [UI] private Statusbar Statusbar = null;
 
         private byte[] _lastCompressedData;
         private string _lastDecompressedText;
@@ -19,6 +18,16 @@ namespace ShrinkENG
         private MainWindow(Builder builder) : base(builder.GetRawOwnedObject("MainWindow"))
         {
             builder.Autoconnect(this);
+
+            // Check if ShrinkEngine.state is 2, which indicates a critical error
+            if (ShrinkEngine.State == 2)
+            {
+                var md = new MessageDialog(this, DialogFlags.DestroyWithParent, MessageType.Error, ButtonsType.Close, "Critical error: ShrinkEngine.state is 2. The application will now exit.");
+                md.Run();
+                md.Destroy();
+                Application.Quit();
+                return;
+            }
 
             DeleteEvent += Window_DeleteEvent;
             ChooseFileButton.Clicked += (sender, e) => OpenFile();
@@ -42,16 +51,15 @@ namespace ShrinkENG
                     {
                         var compressedBytes = File.ReadAllBytes(chosenPath);
                         var decompressedText = ShrinkEngine.Decompress(compressedBytes);
-                        OutputTextView.Buffer.Text = decompressedText;
-                        Statusbar.Push(0, $"Decompressed '{System.IO.Path.GetFileName(chosenPath)}'.");
+                        OutputTextView.Buffer.Text = "Decompressed " + compressedBytes.Length + " bytes to " + decompressedText.Length + " bytes.\n" +
+                                                      $"File path: {chosenPath}";
                         PromptSaveFile(decompressedText, chosenPath, false);
                     }
                     else
                     {
                         var text = File.ReadAllText(chosenPath);
                         var compressed = ShrinkEngine.Compress(text);
-                        OutputTextView.Buffer.Text = $"Compressed {text.Length} bytes to {compressed.Length} bytes. Ratio: {(float)compressed.Length / text.Length:P}";
-                        Statusbar.Push(0, $"Compressed '{System.IO.Path.GetFileName(chosenPath)}'.");
+                        OutputTextView.Buffer.Text = $"Compressed {text.Length} bytes to {compressed.Length} bytes.\nRatio: {(float)compressed.Length / text.Length:P}\nFile path: {chosenPath}";
                         PromptSaveFile(compressed, chosenPath, true);
                     }
                 }
@@ -85,12 +93,10 @@ namespace ShrinkENG
                     if (isCompressed && data is byte[] bytes)
                     {
                         File.WriteAllBytes(savePath, bytes);
-                        Statusbar.Push(0, $"Saved compressed file to '{System.IO.Path.GetFileName(savePath)}'.");
                     }
                     else if (!isCompressed && data is string text)
                     {
                         File.WriteAllText(savePath, text);
-                        Statusbar.Push(0, $"Saved decompressed file to '{System.IO.Path.GetFileName(savePath)}'.");
                     }
                 }
                 catch (Exception ex)
