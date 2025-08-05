@@ -14,7 +14,7 @@ using (var stream = assembly.GetManifestResourceStream(resourceName))
 {
     if (stream == null)
     {
-        Console.WriteLine("Resource not found.");
+        Console.WriteLine($"Dictionary resource {resourceName} not found.");
         return;
     }
     
