@@ -7,10 +7,16 @@ using ShrinkEng;
 public class ShrinkEngine {
     static Dictionary<string, ushort> wordMap = new Dictionary<string, ushort>();
     static string[] wordsArr;
+
+    static ShrinkEngine()
+    {
+        Init();
+    }
+
     // Flags for packed operators
     const byte EXT_UTF_FLAG = 0x20;
     const byte EXT_SEMI_FLAG = 0x10;
-    static void Init(string[] args)
+    static void Init()
     {
         // Initialization of words list (about 25k words) from embedded resource
         var assembly = Assembly.GetExecutingAssembly();
@@ -44,7 +50,7 @@ public class ShrinkEngine {
         }
     }
 
-    static byte[] Compress(string s)
+    public static byte[] Compress(string s)
     {
         if (string.IsNullOrEmpty(s))
         {
@@ -138,7 +144,7 @@ public class ShrinkEngine {
         return compressed.ToArray();
     }
 
-     static string Decompress(byte[] compressed)
+     public static string Decompress(byte[] compressed)
     {
         if (compressed == null || compressed.Length == 0)
         {
@@ -225,7 +231,7 @@ public class ShrinkEngine {
         return sb.ToString();
     }
     
-    static string FileNameNoOverwrite(string path)
+    public static string FileNameNoOverwrite(string path)
     {
         string directory = Path.GetDirectoryName(path) ?? "";
         string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
@@ -238,7 +244,7 @@ public class ShrinkEngine {
         return path;
     }
 
-    static string ProcessFilepathInput(string? inp)
+    public static string ProcessFilepathInput(string? inp)
     {
         if (string.IsNullOrEmpty(inp))
         {
