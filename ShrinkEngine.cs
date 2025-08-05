@@ -3,9 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using GLib;
 using ShrinkEng;
-public class ShrinkEngine {
-    static Dictionary<string, ushort> wordMap = new Dictionary<string, ushort>();
+public class ShrinkEngine
+{
+    //Make State settable only from this class
+    public static byte State { get; private set; } = 0;
+    // State 0: uninitialized, 1: initialized, 2: initializing
+    public static Dictionary<string, ushort> wordMap = new Dictionary<string, ushort>();
     static string[] wordsArr;
 
     static ShrinkEngine()
@@ -18,14 +23,15 @@ public class ShrinkEngine {
     const byte EXT_SEMI_FLAG = 0x10;
     static void Init()
     {
+        State = 2;
         // Initialization of words list (about 25k words) from embedded resource
         var assembly = Assembly.GetExecutingAssembly();
-        var resourceName = "ShrinkEng.resources.wordfreq-en-25000.txt";
+        var resourceName = "ShrinkENG.resources.wordfreq-en-25000.txt";
         using (var stream = assembly.GetManifestResourceStream(resourceName))
         {
             if (stream == null)
             {
-                Console.WriteLine($"Dictionary resource {resourceName} not found.");
+                Log.DefaultHandler("Error", LogLevelFlags.FlagFatal, $"Dictionary resource {resourceName} not found.");
                 return;
             }
 
@@ -34,7 +40,7 @@ public class ShrinkEngine {
                 string wordList = reader.ReadToEnd();
                 wordsArr = wordList.Split("\n");
                 // Process the word list as needed
-                Console.WriteLine($"Loaded {wordsArr.Length} words.");
+                Log.DefaultHandler("Info", LogLevelFlags.Info, $"Loaded {wordsArr.Length} words.");
             }
         }
         // wordsArr will be around 25k words
@@ -48,6 +54,9 @@ public class ShrinkEngine {
                 wordMap.TryAdd(word, i);
             }
         }
+        Log.DefaultHandler("Info", LogLevelFlags.Info, $"Dictionary loaded with {wordMap.Count} unique words.");
+
+        State = 1;
     }
 
     public static byte[] Compress(string s)
@@ -87,6 +96,7 @@ public class ShrinkEngine {
                 var payload = Encoding.UTF8.GetBytes(words[i]);
                 compressed.AddRange(Encode7BitVarUInt((uint)payload.Length));
                 compressed.AddRange(payload);
+                Log.DefaultHandler("Debug", LogLevelFlags.Debug, $"UTF block: {words[i]} -> {BitConverter.ToString(payload)}");
             }
             else if(hasOps)
             {
