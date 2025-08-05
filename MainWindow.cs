@@ -51,16 +51,13 @@ namespace ShrinkENG
                     {
                         var compressedBytes = File.ReadAllBytes(chosenPath);
                         var decompressedText = ShrinkEngine.Decompress(compressedBytes);
-                        OutputTextView.Buffer.Text = "Decompressed " + compressedBytes.Length + " bytes to " + decompressedText.Length + " bytes.\n" +
-                                                      $"File path: {chosenPath}";
-                        PromptSaveFile(decompressedText, chosenPath, false);
+                        PromptSaveFile(decompressedText, chosenPath, false, compressedBytes.Length, decompressedText.Length);
                     }
                     else
                     {
                         var text = File.ReadAllText(chosenPath);
                         var compressed = ShrinkEngine.Compress(text);
-                        OutputTextView.Buffer.Text = $"Compressed {text.Length} bytes to {compressed.Length} bytes.\nRatio: {(float)compressed.Length / text.Length:P}\nFile path: {chosenPath}";
-                        PromptSaveFile(compressed, chosenPath, true);
+                        PromptSaveFile(compressed, chosenPath, true, text.Length, compressed.Length);
                     }
                 }
                 catch (Exception ex)
@@ -74,7 +71,7 @@ namespace ShrinkENG
             }
         }
 
-        private void PromptSaveFile(object data, string originalPath, bool isCompressed)
+        private void PromptSaveFile(object data, string originalPath, bool isCompressed, int originalSize, int newSize)
         {
             string defaultName = isCompressed ? System.IO.Path.ChangeExtension(originalPath, ".eng") : System.IO.Path.ChangeExtension(originalPath, ".txt");
             var fileChooser = new FileChooserDialog(
@@ -92,10 +89,13 @@ namespace ShrinkENG
                     var savePath = ShrinkEngine.FileNameNoOverwrite(fileChooser.Filename);
                     if (isCompressed && data is byte[] bytes)
                     {
+                        OutputTextView.Buffer.Text = $"Compressed {originalSize} bytes to {newSize} bytes.\nRatio: {(float)originalSize / newSize:P}\nFile path: {savePath}";
                         File.WriteAllBytes(savePath, bytes);
                     }
                     else if (!isCompressed && data is string text)
                     {
+                        OutputTextView.Buffer.Text = "Decompressed " + originalSize + " bytes to " + newSize + " bytes.\n" +
+                                                     $"File path: {savePath}";
                         File.WriteAllText(savePath, text);
                     }
                 }
