@@ -4,6 +4,15 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
+  <PropertyGroup>
+    <PublishSingleFile>true</PublishSingleFile>              
+    <SelfContained>true</SelfContained>                      
+    <PublishTrimmed>true</PublishTrimmed>                   
+    <TrimMode>Link</TrimMode>                                
+    <PublishReadyToRun>false</PublishReadyToRun>             
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>  
+  </PropertyGroup>
+
 
   <ItemGroup>
     <None Remove="**\*.glade" />
