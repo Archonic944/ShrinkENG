@@ -3,6 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
   <PropertyGroup>
     <PublishSingleFile>true</PublishSingleFile>              
@@ -19,6 +20,8 @@
     <EmbeddedResource Include="**\*.glade">
       <LogicalName>%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
+    <None Remove="resources\wordfreq-en-25000.txt" />
+    <EmbeddedResource Include="resources\wordfreq-en-25000.txt" />
   </ItemGroup>
 
   <ItemGroup>
