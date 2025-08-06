@@ -1,7 +1,7 @@
 {
   "entryAssembly": "ShrinkENG",
   "resources": {
-    "hash": "sha256-C4iLe3XYLAt5inakB7elCUDX8KQ1GCxGi7qZX7aWNuM=",
+    "hash": "sha256-XR8/PuOxl/foyUqpI04E+z3T0r3y1EPaTUPDtCXk8wU=",
     "runtime": {
       "dotnet.js": "sha256-pu7MO47B6So4jcW6iY2UI11lBZYz2EQnJKiYNsOpNJg=",
       "dotnet.timezones.blat": "sha256-vrFYQt55a4tGoDGoyRfjjGa1nSecx646RK78iTzPWCM=",
@@ -26,7 +26,7 @@
       "Microsoft.Extensions.Primitives.dll": "sha256-VUPREtCCA8mnYUT6KUVlUN6UaPdgcBDFiqnMhiO3caM=",
       "Microsoft.JSInterop.dll": "sha256-YIqeV9v4bEAs1cT0nORhgqBc2vC6RBImnSOkVQupGPY=",
       "Microsoft.JSInterop.WebAssembly.dll": "sha256-1Y/r8cYouXQi18WhuVdjdss9BgkYsa/tQ+VGM0k8nm4=",
-      "ShrinkENG.dll": "sha256-qQ3lcr3JA5IycsW6rrV8toKwiOqt1s08C5vaVyepUQU=",
+      "ShrinkENG.dll": "sha256-on3x/KLeuwhU07mc/yPF9cYdzv9pEbfuFCt5Bsvqb+A=",
       "System.Collections.Concurrent.dll": "sha256-A+2aAfIZfPjfMgkULlIBL9Mm65sGS55yTgEuxrJL5cg=",
       "System.Collections.dll": "sha256-zrtarU9dhCwgzlDSHHmdHPIVifyaZxk7JKRAp2tXF6Q=",
       "System.ComponentModel.dll": "sha256-dvbPo00eH/5dUvhVdE5ZeM6fSghPuqrJXBfMzIcBzYE=",
@@ -49,7 +49,7 @@
       }
     }
   },
-  "cacheBootResources": true,
+  "cacheBootResources": false,
   "debugBuild": false,
   "debugLevel": 0,
   "linkerEnabled": true,
