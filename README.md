@@ -1,4 +1,4 @@
-# ShrinkENG Natural Language Compression
+# ShrinkENG Natural Language Compression <img src="/images/shrinkeng.png" height=70>
 
 ShrinkENG is a tool for compressing English text by storing each word as an index of a word within a dictionary. 
 For capitalization, punctuation, and whitespace other than a space, static "operators" are declared in a byte before the word (if necessary).
