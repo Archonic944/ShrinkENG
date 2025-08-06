@@ -1,0 +1,245 @@
+@page "/"
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Text
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+
+<PageTitle>ShrinkENG - Natural Language Compression</PageTitle>
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card">
+                <div class="card-header text-center">
+                    <div class="d-flex align-items-center justify-content-center mb-3">
+                        <img src="shrinkeng.png" alt="ShrinkENG Logo" class="shrinkeng-logo me-3" />
+                        <div>
+                            <h1 class="h2 mb-0">ShrinkENG</h1>
+                            <h2 class="h5 text-muted mb-0">Natural Language Compression</h2>
+                        </div>
+                    </div>
+                    <p class="text-muted mb-0">Compress English text to bytecode using dictionary-based encoding</p>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(statusMessage))
+                    {
+                        <div class="alert @(isError ? "alert-danger" : "alert-success") alert-dismissible fade show" role="alert">
+                            @statusMessage
+                            <button type="button" class="btn-close" @onclick="ClearStatus"></button>
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label for="fileInput" class="form-label">Choose File</label>
+                        <InputFile id="fileInput" OnChange="HandleFileSelected" class="form-control" accept=".txt,.eng" disabled="@isProcessing" />
+                        <div class="form-text">
+                            Select a .txt file to compress or a .eng file to decompress
+                        </div>
+                    </div>
+
+                    @if (isProcessing)
+                    {
+                        <div class="card mt-3 processing-card">
+                            <div class="card-body text-center">
+                                <div class="d-flex align-items-center justify-content-center mb-3">
+                                    <div class="spinner-border text-primary me-3" role="status">
+                                        <span class="visually-hidden">Processing...</span>
+                                    </div>
+                                    <h5 class="mb-0 processing-text">@processingMessage</h5>
+                                </div>
+                                <div class="progress mb-3">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 100%"></div>
+                                </div>
+                                <p class="text-muted mb-0">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Please wait, this may take a moment for large files...
+                                </p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (processedData != null && !isProcessing)
+                    {
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Results</h5>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="stat-box">
+                                            <div class="stat-value">@FormatFileSize(originalSize)</div>
+                                            <div class="stat-label">Original Size</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="stat-box">
+                                            <div class="stat-value">@FormatFileSize(processedSize)</div>
+                                            <div class="stat-label">@(isCompressed ? "Compressed" : "Decompressed") Size</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="stat-box">
+                                            <div class="stat-value">@((originalSize > 0 ? (double)processedSize / originalSize : 0).ToString("P1"))</div>
+                                            <div class="stat-label">Ratio</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-primary" @onclick="DownloadFile">
+                                        <i class="fas fa-download"></i>
+                                        Download @(isCompressed ? "Compressed" : "Decompressed") File
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="text-center mt-5 mb-3">
+    <hr />
+    <small>
+        <a href="https://github.com/Archonic944/ShrinkENG" target="_blank" rel="noopener noreferrer">
+            View on GitHub: Archonic944/ShrinkENG
+        </a>
+    </small>
+</footer>
+
+@code {
+    private string? statusMessage;
+    private bool isError;
+    private byte[]? processedData;
+    private string? fileName;
+    private long originalSize;
+    private long processedSize;
+    private bool isCompressed;
+    private bool isProcessing = false;
+    private string processingMessage = "";
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        ClearStatus();
+        
+        var file = e.File;
+        if (file == null) return;
+
+        try
+        {
+            fileName = file.Name;
+            isProcessing = true;
+            processedData = null;
+            StateHasChanged();
+
+            // Show loading for file reading
+            processingMessage = "Reading file...";
+            StateHasChanged();
+            await Task.Delay(1); // Allow UI to update
+
+            var buffer = new byte[file.Size];
+            await file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024).ReadAsync(buffer);
+
+            originalSize = buffer.Length;
+
+            if (file.Name.EndsWith(".eng", StringComparison.OrdinalIgnoreCase))
+            {
+                // Decompress
+                processingMessage = "Decompressing file...";
+                StateHasChanged();
+                await Task.Delay(1); // Allow UI to update
+
+                if (buffer.Length < 6)
+                {
+                    isProcessing = false;
+                    ShowError("Invalid .eng file: too small");
+                    return;
+                }
+
+                byte vmaj = buffer[0];
+                byte vmin = buffer[1];
+                if (ShrinkEngine.VersionMajor != vmaj || ShrinkEngine.VersionMinor != vmin)
+                {
+                    statusMessage = $"Warning: File version v{vmaj}.{vmin} differs from engine v{ShrinkEngine.VersionMajor}.{ShrinkEngine.VersionMinor}. Attempting decompression...";
+                    isError = false;
+                }
+
+                var decompressedText = ShrinkEngine.Decompress(buffer);
+                processedData = Encoding.UTF8.GetBytes(decompressedText);
+                processedSize = processedData.Length;
+                isCompressed = false;
+                fileName = Path.ChangeExtension(fileName, ".txt");
+                
+                if (string.IsNullOrEmpty(statusMessage))
+                {
+                    ShowSuccess($"Successfully decompressed {FormatFileSize(originalSize)} to {FormatFileSize(processedSize)}");
+                }
+            }
+            else
+            {
+                // Compress
+                processingMessage = "Compressing file...";
+                StateHasChanged();
+                await Task.Delay(1); // Allow UI to update
+
+                var text = Encoding.UTF8.GetString(buffer);
+                processedData = ShrinkEngine.Compress(text);
+                processedSize = processedData.Length;
+                isCompressed = true;
+                fileName = Path.ChangeExtension(fileName, ".eng");
+                
+                ShowSuccess($"Successfully compressed {FormatFileSize(originalSize)} to {FormatFileSize(processedSize)} ({(double)processedSize / originalSize:P1})");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Error processing file: {ex.Message}");
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DownloadFile()
+    {
+        if (processedData == null || string.IsNullOrEmpty(fileName)) return;
+
+        var base64 = Convert.ToBase64String(processedData);
+        await JSRuntime.InvokeVoidAsync("downloadFile", fileName, base64);
+    }
+
+    private void ShowError(string message)
+    {
+        statusMessage = message;
+        isError = true;
+    }
+
+    private void ShowSuccess(string message)
+    {
+        statusMessage = message;
+        isError = false;
+    }
+
+    private void ClearStatus()
+    {
+        statusMessage = null;
+        isError = false;
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] suffixes = { "B", "KB", "MB", "GB" };
+        double size = bytes;
+        int suffixIndex = 0;
+        
+        while (size >= 1024 && suffixIndex < suffixes.Length - 1)
+        {
+            size /= 1024;
+            suffixIndex++;
+        }
+        
+        return $"{size:F1} {suffixes[suffixIndex]}";
+    }
+}

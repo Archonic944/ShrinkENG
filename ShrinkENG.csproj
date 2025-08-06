@@ -1,35 +1,26 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
     <TargetFramework>net6.0</TargetFramework>
     <LangVersion>latest</LangVersion>
-  </PropertyGroup>
-  <PropertyGroup>
-    <PublishSingleFile>true</PublishSingleFile>              
-    <SelfContained>true</SelfContained>                      
-    <PublishTrimmed>true</PublishTrimmed>                   
-    <TrimMode>Link</TrimMode>                                
-    <PublishReadyToRun>false</PublishReadyToRun>             
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>  
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
 
   <ItemGroup>
-    <None Remove="**\*.glade" />
-    <EmbeddedResource Include="**\*.glade">
-      <LogicalName>%(Filename)%(Extension)</LogicalName>
-    </EmbeddedResource>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="6.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="6.0.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="resources\wordfreq-en-25000.txt" />
     <EmbeddedResource Include="resources\wordfreq-en-25000.txt" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="GtkSharp" Version="3.24.24.*" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Folder Include="images\" />
+    <Folder Include="wwwroot\" />
   </ItemGroup>
 
 </Project>

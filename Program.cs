@@ -1,23 +1,9 @@
-using System;
-using Gtk;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using ShrinkENG;
 
-namespace ShrinkENG
-{
-    class Program
-    {
-        [STAThread]
-        public static void Main(string[] args)
-        {
-            Application.Init();
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.RootComponents.Add<App>("#app");
+builder.RootComponents.Add<HeadOutlet>("head::after");
 
-            var app = new Application("org.ShrinkENG.ShrinkENG", GLib.ApplicationFlags.None);
-            app.Register(GLib.Cancellable.Current);
-
-            var win = new MainWindow();
-            app.AddWindow(win);
-
-            win.Show();
-            Application.Run();
-        }
-    }
-}
+await builder.Build().RunAsync();

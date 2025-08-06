@@ -1,0 +1,9 @@
+<div class="page">
+    <main>
+        @Body
+    </main>
+</div>
+
+@code {
+    [Parameter] public RenderFragment Body { get; set; } = default!;
+}
