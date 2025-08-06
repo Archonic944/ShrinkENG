@@ -19,7 +19,7 @@ traditional compression algorithm like zlib or LZMA for maximum compression
 
 The files are available in the Releases section of the GitHub repository. Find it on the right.
 
-On macOS, you may need to right click the binary and select Open to bypass Gatekeeper.
+**On macOS**: you may need to right click the binary and select Open (instead of double-clicking) to bypass Gatekeeper. If it's still giving you issues, you have to go into your security and privacy settings and click "Open Anyway" after you failed to open the app.
 
 # Compression Ratio
 The compression ratio of ShrinkENG is about 50% for a large English text corpus.
