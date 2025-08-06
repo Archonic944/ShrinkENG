@@ -15,6 +15,12 @@ It is actually recommended to use ShrinkENG in conjunction with a
 traditional compression algorithm like zlib or LZMA for maximum compression 
 (first compress with ShrinkENG, then compress the output with zlib or LZMA).
 
+# Usage
+
+The files are available in the Releases section of the GitHub repository. Find it on the right.
+
+On macOS, you may need to right click the binary and select Open to bypass Gatekeeper.
+
 # Compression Ratio
 The compression ratio of ShrinkENG is about 50% for a large English text corpus.
 If there are many words not in the dictionary, or a large amount of punctuation, or, say,
@@ -48,8 +54,4 @@ most common English words, [dumped from wordfreq](https://github.com/aparrish/wo
 
 They are sorted by frequency. This saves space because word bytes are stored
 as variable length integers, so the smaller the index, the fewer bytes it takes to store.
-
-# Usage
-
-(details about MAUI application will go here when it's ready)
 
