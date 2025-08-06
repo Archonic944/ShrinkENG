@@ -50,6 +50,16 @@ namespace ShrinkENG
                     if (chosenPath.EndsWith(".eng", StringComparison.OrdinalIgnoreCase))
                     {
                         var compressedBytes = File.ReadAllBytes(chosenPath);
+                        // Error out if major version and minor version don't match
+                        byte vmaj = compressedBytes[0];
+                        byte vmin = compressedBytes[1];
+                        if (ShrinkEngine.VersionMajor != vmaj ||
+                            ShrinkEngine.VersionMinor != vmin)
+                        {
+                            ShowError("Warning: The file was created with a different version of ShrinkENG. " +
+                                      $"Expected version v{ShrinkEngine.VersionMajor}.{ShrinkEngine.VersionMinor}, " +
+                                      $"but found v{vmaj}.{vmin}. Output may be corrupted.\n\nShrinkENG will try anyway, but ideally, decompress it with the same version of ShrinkENG that created it (v{vmaj}.{vmin}).");
+                        }
                         var decompressedText = ShrinkEngine.Decompress(compressedBytes);
                         PromptSaveFile(decompressedText, chosenPath, false, compressedBytes.Length, decompressedText.Length);
                     }
