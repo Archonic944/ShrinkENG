@@ -8,7 +8,6 @@
 ## Get latest from https://github.com/github/gitignore/blob/main/Dotnet.gitignore
 
 # Build results
-[Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
@@ -18,7 +17,6 @@ x86/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
-[Bb]in/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
@@ -57,12 +55,10 @@ nunit-*.xml
 ShrinkEng/test/
 ShrinkEng/.DS_Store
 .DS_Store
-.DS_Store
-ShrinkEng/.DS_Store
 /test
-/ShrinkENG.app
 /ShrinkENG.app
 /binaries/
 wordcheck.py
 *.ico
 *.icns
+/bin/Debug/net6.0/wwwroot
