@@ -17,11 +17,9 @@ traditional compression algorithm like zlib or LZMA for maximum compression
 
 # Usage
 
-The files are available in the Releases section of the GitHub repository. Find it on the right.
+Simply visit https://shrinkeng.vercel.app/, and upload a file to compress!
 
-**On macOS**: You have to do some extra stuff. Copy the app in Finder (cmd + c), then open terminal, then type:
-
-`xattr -d com.apple.quarantine` then space, then paste, then enter. Now try running the app (right click => open just to be safe).
+Please use a raw text file (txt) instead of a pdf, docx, or rtf.
 
 # Compression Ratio
 The compression ratio of ShrinkENG is about 50% for a large English text corpus.
