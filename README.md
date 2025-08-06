@@ -1,4 +1,4 @@
-# ShrinkENG English Language Compression
+# ShrinkENG Natural Language Compression
 
 ShrinkENG is a tool for compressing English text by storing each word as an index of a word within a dictionary. 
 For capitalization, punctuation, and whitespace other than a space, static "operators" are declared in a byte before the word (if necessary).
@@ -23,6 +23,23 @@ an uncommon text structure that causes a lot of UTF-8 fallbacks, the compression
 <img src="https://i.ibb.co/hx5HGmjc/readme-img1.png" width="600">
 
 *The above image shows War and Peace compressed with ShrinkENG only, which results in a 52.9% file size reduction.*
+
+The same document (War and Peace.txt) compressed with ZIP results in 1.20MB. ShrinkENG + ZIP results in 1.06MB. Here is a table:
+
+| Compression Method | File Size | Compression Ratio |
+|--------------------|-----------|-------------------|
+| ShrinkENG          | 1.42MB    | 52.9%             |
+| ZIP                | 1.20MB    | 61.2%             |
+| ShrinkENG + ZIP    | 1.06MB    | 67.1%             |
+
+# Advantages Over ZIP
+Using ShrinkENG to compress English text instead of ZIP compression has several advantages:
+- **Compression Ratio**: ShrinkENG usually compresses English text to around the same size as ZIP. Combining it with ZIP results in a smaller size than just ZIP.
+- **Streamable**: ShrinkENG is designed to be streamable, meaning that you can start from either the front or back of the stream and decompress an arbitrary number of words.
+*Note: starting from the middle of the stream is technically possible but introduces challenges with keeping track of operators and UTF-8 fallbacks.*
+- **Lightweight Decompression**: ShrinkENG is designed to be lightweight, and could probably be used to compress and decompress text (such as user messages) on the fly.
+
+***Everything's better when we work as a team...***<br>Using ShrinkENG *with* ZIP results in the lowest file size.
 
 # Dictionary
 
