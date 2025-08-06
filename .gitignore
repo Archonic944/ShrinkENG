@@ -64,3 +64,5 @@ ShrinkEng/.DS_Store
 /ShrinkENG.app
 /binaries/
 wordcheck.py
+*.ico
+*.icns
