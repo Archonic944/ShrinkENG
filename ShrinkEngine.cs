@@ -1,11 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
 using System.Reflection;
 using System.Text;
-using Gdk;
-using GLib;
 using ShrinkEng;
 public class ShrinkEngine
 {
@@ -14,7 +11,7 @@ public class ShrinkEngine
     public static byte State { get; private set; } = 0;
     // State 0: uninitialized, 1: initialized, 2: initializing
     public static Dictionary<string, ushort> wordMap = new Dictionary<string, ushort>();
-    static string[] wordsArr;
+    static string[] wordsArr = null!;
 
     static ShrinkEngine()
     {
@@ -34,7 +31,7 @@ public class ShrinkEngine
         {
             if (stream == null)
             {
-                Log.DefaultHandler("Error", LogLevelFlags.FlagFatal, $"Dictionary resource {resourceName} not found.");
+                Console.WriteLine($"Error: Dictionary resource {resourceName} not found.");
                 return;
             }
 
@@ -43,7 +40,7 @@ public class ShrinkEngine
                 string wordList = reader.ReadToEnd();
                 wordsArr = wordList.Split("\n");
                 // Process the word list as needed
-                Log.DefaultHandler("Info", LogLevelFlags.Info, $"Loaded {wordsArr.Length} words.");
+                Console.WriteLine($"Loaded {wordsArr.Length} words.");
             }
         }
         // wordsArr will be around 25k words
@@ -57,7 +54,7 @@ public class ShrinkEngine
                 wordMap.TryAdd(word, i);
             }
         }
-        Log.DefaultHandler("Info", LogLevelFlags.Info, $"Dictionary loaded with {wordMap.Count} unique words.");
+        Console.WriteLine($"Dictionary loaded with {wordMap.Count} unique words.");
 
         State = 1;
     }
@@ -105,7 +102,7 @@ public class ShrinkEngine
                 var payload = Encoding.UTF8.GetBytes(words[i]);
                 compressed.AddRange(Encode7BitVarUInt((uint)payload.Length));
                 compressed.AddRange(payload);
-                Log.DefaultHandler("Debug", LogLevelFlags.Debug, $"UTF block: {words[i]} -> {BitConverter.ToString(payload)}");
+                Console.WriteLine($"UTF block: {words[i]} -> {BitConverter.ToString(payload)}");
             }
             else if(hasOps)
             {
