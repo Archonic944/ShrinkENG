@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using Gdk;
 using GLib;
 using ShrinkEng;
 public class ShrinkEngine
 {
-    //Make State settable only from this class
+    public const byte VersionMajor = 1;
+    public const byte VersionMinor = 0;
     public static byte State { get; private set; } = 0;
     // State 0: uninitialized, 1: initialized, 2: initializing
     public static Dictionary<string, ushort> wordMap = new Dictionary<string, ushort>();
@@ -74,6 +77,12 @@ public class ShrinkEngine
         }
         
         var compressed = new List<byte>(words.Count * sizeof(ushort) + 8);
+        // Add version number (2 bytes, first byte is major, second is minor)
+        compressed.Add(VersionMajor);
+        compressed.Add(VersionMinor);
+        
+        // Add magic number (4 bytes. could be used for metadata like word list. this version writes SENG in UTF-8).
+        compressed.AddRange([0x53, 0x45, 0x4E, 0x47]);
 
         // Determine initial ops
         var ops = Operator.MinApplicableOps(words[0], wordMap);
@@ -156,13 +165,15 @@ public class ShrinkEngine
 
      public static string Decompress(byte[] compressed)
     {
-        if (compressed == null || compressed.Length == 0)
+        if (compressed == null || compressed.Length <= 6)
         {
             return string.Empty;
         }
 
+        
         var sb = new StringBuilder();
-        int i = 0;
+        // Skip version bytes and magic number
+        int i = 6;
 
         // Read info byte
         byte info = compressed[i++];
@@ -489,33 +500,6 @@ public class ShrinkEngine
 
         if (hasSemi) ops.Add(Operator.Semicolon);
 
-        return ops;
-    }
-
-    static void WriteOpsData(List<byte> compressedStream, List<Operator> ops)
-    {
-        if (ops.Count == 0) return;
-        for (var i = 0; i < ops.Count; i++)
-        {
-            var opId = (byte)(ops[i].ID & 0x7F); // 0-127
-            if (i < ops.Count - 1)
-                opId |= 0x80; // Set leftmost bit if more ops follow
-            compressedStream.Add(opId);
-        }
-    }
-
-    static List<Operator> ReadOps(byte[] bytes, ref int index)
-    {
-        List<Operator> ops = new List<Operator>();
-        while (index < bytes.Length)
-        {
-            byte opId = bytes[index++];
-            bool hasNext = (opId & 0x80) != 0; // Check if the leftmost bit is set
-            opId &= 0x7F; // Clear the leftmost bit to get the actual ID
-            var op = Operator.GetByID(opId);
-            ops.Add(op);
-            if (!hasNext) break; // If no more ops follow, exit the loop
-        }
         return ops;
     }
 }
