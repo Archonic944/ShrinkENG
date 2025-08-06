@@ -12,6 +12,10 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="6.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="6.0.0" PrivateAssets="all" />
   </ItemGroup>
+  
+  <PropertyGroup>
+    <BlazorCacheBootResources>false</BlazorCacheBootResources>
+  </PropertyGroup>
 
   <ItemGroup>
     <None Remove="resources\wordfreq-en-25000.txt" />
@@ -20,6 +24,13 @@
 
   <ItemGroup>
     <Folder Include="images\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <_ContentIncludedByDefault Remove="dist\web.config" />
+    <_ContentIncludedByDefault Remove="dist\emcc-props.json" />
+    <_ContentIncludedByDefault Remove="dist\ShrinkENG.staticwebassets.endpoints.json" />
+    <_ContentIncludedByDefault Remove="dist\wwwroot\_framework\blazor.boot.json" />
   </ItemGroup>
 
 </Project>
