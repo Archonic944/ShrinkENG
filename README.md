@@ -7,11 +7,11 @@ ShrinkENG falls back automatically on UTF-8 encoding for words not in the dictio
 Theoretically, ShrinkENG could be used to compress 
 languages other than English, but it would require a new dictionary and new operator code.
 
-I think of ShrinkENG as less of a compression algorithm and more of a "bytecode generator" for English,
-since it's not traditionally compressing by mathematical means, but rather translating English
+ShrinkENG is less of a compression algorithm and more of a "bytecode generator" for English,
+since it's not compressing by mathematical means, but rather translating English
 into a more compact representation. 
 
-It is actually recommended to use ShrinkENG in conjunction with a
+It is recommended to use ShrinkENG in conjunction with a
 traditional compression algorithm like zlib or LZMA for maximum compression 
 (first compress with ShrinkENG, then compress the output with zlib or LZMA).
 
