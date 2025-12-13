@@ -4,6 +4,8 @@ ShrinkENG is a tool for compressing English text by storing each word as an inde
 For capitalization, punctuation, and whitespace other than a space, static "operators" are declared in a byte before the word (if necessary).
 ShrinkENG falls back automatically on UTF-8 encoding for words not in the dictionary.
 
+If you'd like to **read through the code**, the two main files are [Operator.cs](/Operator.cs) and [ShrinkEngine.cs](/ShrinkEngine.cs).
+
 Theoretically, ShrinkENG could be used to compress 
 languages other than English, but it would require a new dictionary and new operator code.
 
