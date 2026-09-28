@@ -40,14 +40,9 @@ The same document (War and Peace.txt) compressed with ZIP results in 1.20MB. Shr
 | ZIP                | 1.20MB    | 61.2%             |
 | ShrinkENG + ZIP    | 1.06MB    | 67.1%             |
 
-# Advantages Over ZIP
-Using ShrinkENG to compress English text instead of ZIP compression has several advantages:
-- **Compression Ratio**: ShrinkENG usually compresses English text to around the same size as ZIP. Combining it with ZIP results in a smaller size than just ZIP.
-- **Streamable**: ShrinkENG is designed to be streamable, meaning that you can start from either the front or back of the stream and decompress an arbitrary number of words.
-*Note: starting from the middle of the stream is technically possible but introduces challenges with keeping track of operators and UTF-8 fallbacks.*
-- **Lightweight Decompression**: ShrinkENG is designed to be lightweight, and could probably be used to compress and decompress text (such as user messages) on the fly.
+# Operators
 
-***Everything's better when we work as a team...***<br>Using ShrinkENG *with* ZIP results in the lowest file size.
+Simply replacing each word with its index wouldn't work. What about capital letters? Punctuation? What about words that are not in the dictionary? That's why each word in an ENG file can have multiple "operators" encoded into it. Operators do things like capitalize the first letter of the word or add quotation marks. The index of an operator corresponds to some code in [Operator.cs](/Operator.cs), which applies the operator. There can be a maximum of 127 operators in the current format, of which I have only used about 12.
 
 # Dictionary
 
